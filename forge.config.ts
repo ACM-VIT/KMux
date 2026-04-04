@@ -12,9 +12,7 @@ const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
   },
-  rebuildConfig: {
-    onlyModules: ["node-pty"],
-  },
+  rebuildConfig: {},
   makers: [
     new MakerSquirrel({}),
     new MakerZIP({}, ["darwin"]),
