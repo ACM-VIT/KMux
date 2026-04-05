@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useCanvasStore } from '../store/useCanvasStore';
 import { WorkspaceRow } from './WorkspaceRow';
 
@@ -16,23 +16,31 @@ export const CanvasContainer: React.FC = () => {
   } = useCanvasStore();
 
   const [controlsVisible, setControlsVisible] = useState(true);
+  // Keep a stable ref to the hide-timer so we can reset it on every keydown
+  // regardless of whether controlsVisible has changed.
+  const hideTimerRef = useRef<number | undefined>(undefined);
 
-  // Auto-hide controls after 5s of inactivity
+  const resetHideTimer = React.useCallback(() => {
+    clearTimeout(hideTimerRef.current);
+    setControlsVisible(true);
+    hideTimerRef.current = window.setTimeout(() => setControlsVisible(false), 5000);
+  }, []);
+
+  // Start the initial hide-timer on mount; cancel on unmount.
   useEffect(() => {
-    let id: number;
-    if (controlsVisible) {
-      id = window.setTimeout(() => setControlsVisible(false), 5000);
-    }
-    return () => clearTimeout(id);
-  }, [controlsVisible]);
+    resetHideTimer();
+    return () => clearTimeout(hideTimerRef.current);
+  }, [resetHideTimer]);
 
   // Global keyboard handler — registered with capture:true so it fires
   // before xterm.js (or any focused element) can swallow the event.
+  // Only Alt (Option on macOS) triggers shortcuts; metaKey (Cmd) is NOT
+  // included to avoid hijacking Cmd+Q / Cmd+W and other platform shortcuts.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      setControlsVisible(true);
+      resetHideTimer();
 
-      if (e.metaKey || e.altKey) {
+      if (e.altKey && !e.metaKey) {
         let handled = false;
         switch (e.key.toLowerCase()) {
           case 'arrowleft':  moveTerminal('left');      handled = true; break;
@@ -56,7 +64,7 @@ export const CanvasContainer: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [moveTerminal, moveWorkspace, addTerminal, removeTerminal, resizeTerminal, toggleOverview]);
+  }, [resetHideTimer, moveTerminal, moveWorkspace, addTerminal, removeTerminal, resizeTerminal, toggleOverview]);
 
   // ── Camera math ────────────────────────────────────────────────────────────
   // Vertical axis: slide the entire workspace stack by -100vh per step
