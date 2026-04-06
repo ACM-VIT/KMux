@@ -1,19 +1,15 @@
 import React, { useEffect, useState } from 'react';
+import { RepoSidebar } from '../repo/renderer/components/RepoSidebar';
 import { useCanvasStore } from '../store/useCanvasStore';
 import { WorkspaceRow } from './WorkspaceRow';
 import { FuzzyFinder } from './FuzzyFinder';
 
 export const CanvasContainer: React.FC = () => {
-  const {
-    workspaces,
-    activeWorkspaceIndex,
-    isOverview,
-    theme,
-  } = useCanvasStore();
-
+  const { workspaces, activeWorkspaceIndex, isOverview, theme } = useCanvasStore();
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [isRepoOpen, setIsRepoOpen] = useState(true);
+  const repoDockWidth = isRepoOpen ? 340 : 68;
 
-  // Auto-hide controls after 5s of inactivity
   useEffect(() => {
     let id: number;
     if (controlsVisible) {
@@ -22,7 +18,6 @@ export const CanvasContainer: React.FC = () => {
     return () => clearTimeout(id);
   }, [controlsVisible]);
 
-  // Handle global UI feedback for any keypress
   useEffect(() => {
     const poke = () => setControlsVisible(true);
     window.addEventListener('keydown', poke, true);
@@ -33,74 +28,79 @@ export const CanvasContainer: React.FC = () => {
     };
   }, []);
 
-  // ── Camera math ────────────────────────────────────────────────────────────
-  // Vertical axis: slide the entire workspace stack by -100vh per step
   const translateY = -(activeWorkspaceIndex * 100);
 
   return (
-    <div
-      className="w-screen h-screen overflow-hidden relative"
-      style={{ background: theme.bg }}
-    >
-      {/* Atmospheric ambient glows */}
+    <div className="w-screen h-screen overflow-hidden relative" style={{ background: theme.bg }}>
       <div
-        className="absolute inset-0 pointer-events-none"
+        className="relative h-full overflow-hidden transition-[width,transform] duration-300 ease-out"
         style={{
-          background: `
-            radial-gradient(ellipse 60% 50% at 35% 40%, ${theme.accent}0a 0%, transparent 75%),
-            radial-gradient(ellipse 45% 40% at 85% 85%, rgba(100,20,120,0.04) 0%, transparent 70%),
-            radial-gradient(ellipse 40% 30% at 75% 15%, ${theme.accent}05 0%, transparent 65%)
-          `,
+          width: `calc(100% - ${repoDockWidth}px)`,
+          transform: isRepoOpen ? 'translateX(0)' : 'translateX(0)',
         }}
-      />
-
-      {/* Deep Obsidian Background */}
-      {/* (Grid removed at user request) */}
-
-      {/* ── Main canvas — vertical + overview transforms applied here ── */}
-      <div
-        className="w-full h-full transition-transform duration-[850ms] ease-[cubic-bezier(0.25,1,0.5,1)]"
-        style={{ transform: isOverview ? 'scale(0.3)' : 'scale(1)' }}
       >
         <div
-          className="flex flex-col transition-transform duration-[850ms] ease-[cubic-bezier(0.25,1,0.5,1)] will-change-transform"
-          style={{ transform: `translateY(${translateY}vh)` }}
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: `
+              radial-gradient(ellipse 60% 50% at 35% 40%, ${theme.accent}0a 0%, transparent 75%),
+              radial-gradient(ellipse 45% 40% at 85% 85%, rgba(100,20,120,0.04) 0%, transparent 70%),
+              radial-gradient(ellipse 40% 30% at 75% 15%, ${theme.accent}05 0%, transparent 65%)
+            `,
+          }}
+        />
+
+        <div
+          className="w-full h-full transition-transform duration-[850ms] ease-[cubic-bezier(0.25,1,0.5,1)]"
+          style={{ transform: isOverview ? 'scale(0.3)' : 'scale(1)' }}
         >
-          {workspaces.map((ws, i) => (
-            <WorkspaceRow
-              key={ws.id}
-              workspace={ws}
-              isActiveWorkspace={i === activeWorkspaceIndex}
+          <div
+            className="flex flex-col transition-transform duration-[850ms] ease-[cubic-bezier(0.25,1,0.5,1)] will-change-transform"
+            style={{ transform: `translateY(${translateY}vh)` }}
+          >
+            {workspaces.map((ws, i) => (
+              <WorkspaceRow
+                key={ws.id}
+                workspace={ws}
+                isActiveWorkspace={i === activeWorkspaceIndex}
+              />
+            ))}
+          </div>
+        </div>
+
+        <FuzzyFinder />
+
+        <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-50">
+          {workspaces.map((_, i) => (
+            <div
+              key={i}
+              className="transition-all duration-300"
+              style={{
+                width: i === activeWorkspaceIndex ? '20px' : '6px',
+                height: '6px',
+                borderRadius: '3px',
+                background: i === activeWorkspaceIndex ? theme.accent : theme.textDim,
+                boxShadow: i === activeWorkspaceIndex ? `0 0 8px ${theme.accent}80` : 'none',
+              }}
             />
           ))}
         </div>
+
+        <div
+          className="absolute bottom-5 left-1/2 -translate-x-1/2 z-50 transition-opacity duration-1000"
+          style={{ opacity: controlsVisible ? 0.6 : 0 }}
+        >
+          <span
+            className="text-xs tracking-[0.3em] uppercase font-mono"
+            style={{ color: 'rgba(232,220,200,0.4)' }}
+          >
+            workspace {activeWorkspaceIndex + 1}
+          </span>
+        </div>
       </div>
 
-      {/* Fuzzy Search Overlay */}
-      <FuzzyFinder />
-
-      {/* Workspace indicator — vertical dot strip on the left */}
-      <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-50">
-        {workspaces.map((_, i) => (
-          <div
-            key={i}
-            className="transition-all duration-300"
-            style={{
-              width:  i === activeWorkspaceIndex ? '20px' : '6px',
-              height: '6px',
-              borderRadius: '3px',
-              background: i === activeWorkspaceIndex
-                ? theme.accent
-                : theme.textDim,
-              boxShadow: i === activeWorkspaceIndex ? `0 0 8px ${theme.accent}80` : 'none',
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Controls overlay — auto-hides after 5s */}
       <div
-        className={`absolute top-5 right-5 z-50 transition-opacity duration-1000 ${
+        className={`absolute top-5 right-5 z-[120] transition-opacity duration-1000 ${
           controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
@@ -133,17 +133,11 @@ export const CanvasContainer: React.FC = () => {
         </div>
       </div>
 
-      {/* Active workspace label — bottom centre */}
-      <div
-        className="absolute bottom-5 left-1/2 -translate-x-1/2 z-50 transition-opacity duration-1000"
-        style={{ opacity: controlsVisible ? 0.6 : 0 }}
-      >
-        <span
-          className="text-xs tracking-[0.3em] uppercase font-mono"
-          style={{ color: 'rgba(232,220,200,0.4)' }}
-        >
-          workspace {activeWorkspaceIndex + 1}
-        </span>
+      <div className="absolute right-0 top-0 z-[90] h-full">
+        <RepoSidebar
+          isOpen={isRepoOpen}
+          onToggle={() => setIsRepoOpen((current) => !current)}
+        />
       </div>
     </div>
   );

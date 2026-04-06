@@ -1,4 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
+import { REPO_IPC_CHANNELS } from './repo/shared/repo-ipc';
+import type { RepoApi, RepoSnapshot } from './repo/shared/repo-types';
 import { TERMINAL_IPC_CHANNELS } from './terminal/shared/terminal-ipc';
 import type {
   TerminalApi,
@@ -53,4 +55,14 @@ const terminalApi: TerminalApi = {
   },
 };
 
+const repoApi: RepoApi = {
+  getRepoSnapshot: async (request): Promise<RepoSnapshot> => {
+    return ipcRenderer.invoke(REPO_IPC_CHANNELS.snapshot, request);
+  },
+  runAction: async (request) => {
+    return ipcRenderer.invoke(REPO_IPC_CHANNELS.action, request);
+  },
+};
+
 contextBridge.exposeInMainWorld('terminalApi', terminalApi);
+contextBridge.exposeInMainWorld('repoApi', repoApi);
