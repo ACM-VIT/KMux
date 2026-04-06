@@ -18,6 +18,18 @@ test('extracts cwd from osc 633 output', () => {
   assert.equal(cwd, '/home/tester/repo');
 });
 
+test('extracts cwd from powershell prompt output', () => {
+  const output = '\u001b[32mPS E:\\ACM\\KMux>\u001b[0m ';
+  const cwd = extractTrackedCwdFromOutput(output, 'win32');
+  assert.equal(cwd, 'E:\\ACM\\KMux');
+});
+
+test('extracts cwd from command prompt output', () => {
+  const output = '\r\nC:\\Users\\tester\\repo>';
+  const cwd = extractTrackedCwdFromOutput(output, 'win32');
+  assert.equal(cwd, 'C:\\Users\\tester\\repo');
+});
+
 test('resolves next cwd from cd command', () => {
   const cwd = resolveNextCwdFromCommand(
     'cd ../repo-2',

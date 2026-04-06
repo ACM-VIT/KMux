@@ -13,6 +13,9 @@ const OSC_633_CWD_PATTERN = new RegExp(
   `${ESC}\\]633;P;Cwd=(${ESCAPE_EXCLUSION_PATTERN}*?)${OSC_TERMINATOR_PATTERN}`,
   'g',
 );
+const ANSI_CSI_SEQUENCE_PATTERN = new RegExp(`${ESC}\\[[0-?]*[ -/]*[@-~]`, 'g');
+const POWERSHELL_PROMPT_PATTERN = /(?:^|\r?\n)\s*PS\s+([^>\r\n]+)>/gi;
+const CMD_PROMPT_PATTERN = /(?:^|\r?\n)\s*([a-z]:\\[^>\r\n]*)>/gi;
 
 const stripWrappingQuotes = (value: string): string => {
   if (value.length >= 2) {
@@ -63,6 +66,37 @@ const decodeUriPath = (value: string): string => {
   } catch {
     return value;
   }
+};
+
+const normalizePromptPath = (value: string, platform: NodeJS.Platform): string | null => {
+  let normalizedPath = value.trim();
+  const providerPrefixIndex = normalizedPath.lastIndexOf('::');
+  if (providerPrefixIndex >= 0) {
+    normalizedPath = normalizedPath.slice(providerPrefixIndex + 2).trim();
+  }
+  return normalizePathForPlatform(normalizedPath, platform);
+};
+
+const extractPromptCwdFromOutput = (
+  output: string,
+  platform: NodeJS.Platform,
+): string | null => {
+  const sanitizedOutput = output
+    .replace(ANSI_CSI_SEQUENCE_PATTERN, '')
+    .replace(OSC_7_CWD_PATTERN, '')
+    .replace(OSC_633_CWD_PATTERN, '');
+
+  const powershellPath = readLastMatch(POWERSHELL_PROMPT_PATTERN, sanitizedOutput);
+  if (powershellPath) {
+    return normalizePromptPath(powershellPath, platform);
+  }
+
+  const cmdPath = readLastMatch(CMD_PROMPT_PATTERN, sanitizedOutput);
+  if (cmdPath) {
+    return normalizePromptPath(cmdPath, platform);
+  }
+
+  return null;
 };
 
 const resolveCommandTarget = (
@@ -154,12 +188,12 @@ export const extractTrackedCwdFromOutput = (
   }
 
   const osc7Path = readLastMatch(OSC_7_CWD_PATTERN, output);
-  if (!osc7Path) {
-    return null;
+  if (osc7Path) {
+    const decodedPath = decodeUriPath(osc7Path);
+    return normalizePathForPlatform(decodedPath, platform);
   }
 
-  const decodedPath = decodeUriPath(osc7Path);
-  return normalizePathForPlatform(decodedPath, platform);
+  return extractPromptCwdFromOutput(output, platform);
 };
 
 export const resolveNextCwdFromCommand = (
