@@ -68,6 +68,7 @@ If you are setting up a fresh Windows machine for this project, the practical mi
 ## Notes
 
 - This repo is standardized on `pnpm`.
-- `node-pty` and `@xterm/xterm` are installed as dependencies.
-- `node-pty` is not currently wired into the app runtime.
-- If you want to enable `node-pty`, make sure the OS-specific native build prerequisites above are installed first.
+- `node-pty` and `@xterm/xterm` are installed and wired into the app runtime.
+- Terminal sessions are OS-shell aware (`PowerShell/cmd` on Windows, login shell on macOS/Linux).
+- Terminal process state persists while the app is open; sessions do not auto-restore after app restart in v1.
+- If `node-pty` fails to build or run, verify the OS-specific native build prerequisites above first.
