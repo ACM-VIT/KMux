@@ -27,7 +27,10 @@
  */
 
 import './index.css';
+import '@xterm/xterm/css/xterm.css';
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
 
-console.log(
-  '👋 This message is being logged by "renderer.ts", included via Vite',
-);
+const root = document.getElementById('root') as HTMLElement;
+createRoot(root).render(React.createElement(App));
