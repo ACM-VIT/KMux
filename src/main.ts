@@ -1,6 +1,8 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
+import { RepoManager } from './repo/main/RepoManager';
+import { registerRepoIpc } from './repo/main/registerRepoIpc';
 import { TerminalManager } from './terminal/main/TerminalManager';
 import { registerTerminalIpc } from './terminal/main/registerTerminalIpc';
 
@@ -10,10 +12,15 @@ if (started) {
 }
 
 const terminalManager = new TerminalManager();
+const repoManager = new RepoManager();
 const unregisterTerminalIpc = registerTerminalIpc({
   ipcMain,
   getWindows: () => BrowserWindow.getAllWindows(),
   terminalManager,
+});
+const unregisterRepoIpc = registerRepoIpc({
+  ipcMain,
+  repoManager,
 });
 
 const createWindow = (): BrowserWindow => {
@@ -67,6 +74,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  unregisterRepoIpc();
   unregisterTerminalIpc();
   terminalManager.killAll();
 });

@@ -15,6 +15,7 @@ import type {
   WriteTerminalRequest,
 } from '../shared/terminal-types';
 import { listTerminalProfiles, resolveShell } from './shell/resolveShell';
+import { extractCwdFromTerminalOutput, prepareShellLaunch } from './shell/cwdIntegration';
 import { buildPtyEnv } from './utils/env';
 
 const TERMINAL_EVENT_NAMES = {
@@ -29,6 +30,7 @@ const MIN_DIMENSION = 2;
 interface TerminalSessionRecord {
   pty: IPty;
   snapshot: TerminalSessionSnapshot;
+  outputBuffer: string;
 }
 
 const normalizeDimension = (value: number): number => {
@@ -56,15 +58,16 @@ export class TerminalManager {
     const cols = normalizeDimension(request.cols);
     const rows = normalizeDimension(request.rows);
     const cwd = request.cwd ?? os.homedir();
+    const launch = prepareShellLaunch(shell, process.platform, buildPtyEnv(process.env));
 
     let ptyProcess: IPty;
     try {
-      ptyProcess = pty.spawn(shell.command, shell.args, {
+      ptyProcess = pty.spawn(launch.command, launch.args, {
         name: 'xterm-256color',
         cols,
         rows,
         cwd,
-        env: buildPtyEnv(process.env),
+        env: launch.env,
         useConpty: process.platform === 'win32',
       });
     } catch (error) {
@@ -90,9 +93,23 @@ export class TerminalManager {
     this.sessions.set(request.terminalId, {
       pty: ptyProcess,
       snapshot,
+      outputBuffer: '',
     });
 
     ptyProcess.onData((data) => {
+      const session = this.sessions.get(request.terminalId);
+      if (session) {
+        const parsed = extractCwdFromTerminalOutput(session.outputBuffer, data);
+        session.outputBuffer = parsed.buffer;
+        if (parsed.cwd && parsed.cwd !== session.snapshot.cwd) {
+          session.snapshot = {
+            ...session.snapshot,
+            cwd: parsed.cwd,
+          };
+          this.emitState(session.snapshot);
+        }
+      }
+
       this.events.emit(TERMINAL_EVENT_NAMES.output, {
         terminalId: request.terminalId,
         data,

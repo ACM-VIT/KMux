@@ -68,3 +68,22 @@ body {
   border-radius: 999px;
   border: 2px solid rgba(0, 0, 0, 0.25);
 }
+
+.repo-sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) rgba(255, 255, 255, 0.04);
+}
+
+.repo-sidebar-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.repo-sidebar-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.repo-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  border: 2px solid rgba(0, 0, 0, 0.08);
+}
