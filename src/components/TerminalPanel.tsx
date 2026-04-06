@@ -1,7 +1,3 @@
-/**
- * TerminalPanel.tsx — Cinematic Render (Final Pass)
- */
-
 import React from 'react';
 import { useCanvasStore } from '../store/useCanvasStore';
 import type { Terminal } from '../types/canvas-types';
@@ -20,9 +16,6 @@ export const TerminalPanel: React.FC<Props> = ({ terminal, terminalIndex, isActi
   const { sessions } = useTerminalRuntime();
   const w = getWidthVWString(terminal.widthFraction);
   const shellLabel = sessions[terminal.id]?.shell ?? 'Starting';
-
-  // Overview logic: in overview mode, everything should be fully bright (1).
-  // In regular mode, inactive terminals are "highly" visible (0.9).
   const displayOpacity = isOverview ? 1 : (isActive ? 1 : 0.9);
 
   return (
@@ -45,7 +38,6 @@ export const TerminalPanel: React.FC<Props> = ({ terminal, terminalIndex, isActi
         boxShadow: isActive ? `inset 0 0 60px ${theme.accent}10` : 'none',
       }}
     >
-      {/* Title bar */}
       <div
         style={{
           padding: '14px 22px',
@@ -78,7 +70,6 @@ export const TerminalPanel: React.FC<Props> = ({ terminal, terminalIndex, isActi
         </div>
       </div>
 
-      {/* Live xterm viewport */}
       <div
         style={{
           flex: 1,
