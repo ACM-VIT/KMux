@@ -76,7 +76,7 @@ const findExecutableInPath = (
   const segments = pathEnv.split(';').filter((segment) => segment.trim().length > 0);
   for (const segment of segments) {
     for (const executableName of executableNames) {
-      const candidatePath = path.join(segment, executableName);
+      const candidatePath = path.win32.join(segment, executableName);
       if (runtime.pathExists(candidatePath)) {
         return candidatePath;
       }
@@ -106,7 +106,7 @@ const resolveWindowsPowerShell = (
 ): ResolvedShell | null => {
   const systemRoot = env.SystemRoot ?? 'C:\\Windows';
   const powershellPath = findFirstExistingPath(
-    [path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')],
+    [path.win32.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')],
     runtime,
   );
   if (!powershellPath) {
@@ -128,8 +128,8 @@ const resolvePwsh = (
   const pwshFromPath = findExecutableInPath(env, ['pwsh.exe'], runtime);
   const pwshPath = findFirstExistingPath(
     [
-      path.join(programFiles, 'PowerShell', '7', 'pwsh.exe'),
-      path.join(programFilesX86, 'PowerShell', '7', 'pwsh.exe'),
+      path.win32.join(programFiles, 'PowerShell', '7', 'pwsh.exe'),
+      path.win32.join(programFilesX86, 'PowerShell', '7', 'pwsh.exe'),
       ...(pwshFromPath ? [pwshFromPath] : []),
     ],
     runtime,
@@ -159,7 +159,7 @@ const findVsToolPath = (
   for (const rootPath of programRoots) {
     for (const edition of vsEditions) {
       candidates.push(
-        path.join(
+        path.win32.join(
           rootPath,
           'Microsoft Visual Studio',
           '2022',
@@ -206,8 +206,8 @@ const listWslDistributions = (
   const wslPath =
     findFirstExistingPath(
       [
-        path.join(systemRoot, 'System32', 'wsl.exe'),
-        path.join(systemRoot, 'Sysnative', 'wsl.exe'),
+        path.win32.join(systemRoot, 'System32', 'wsl.exe'),
+        path.win32.join(systemRoot, 'Sysnative', 'wsl.exe'),
       ],
       runtime,
     ) ?? findExecutableInPath(env, ['wsl.exe'], runtime);
@@ -238,7 +238,7 @@ const findAzureCloudShellExecutable = (
 ): string | null => {
   const localAppData = env.LOCALAPPDATA ?? '';
   const windowsAppsPath = localAppData.length > 0
-    ? path.join(localAppData, 'Microsoft', 'WindowsApps', 'azshell.exe')
+    ? path.win32.join(localAppData, 'Microsoft', 'WindowsApps', 'azshell.exe')
     : null;
 
   const fromPath = findExecutableInPath(env, ['azshell.exe'], runtime);
