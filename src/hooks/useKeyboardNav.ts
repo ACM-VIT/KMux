@@ -11,6 +11,7 @@ export const useKeyboardNav = () => {
     addWorkspace,
     removeTerminal,
     resizeTerminal,
+    cycleWidth,
     toggleOverview,
     cycleThemes,
     toggleSearch,
@@ -95,6 +96,10 @@ export const useKeyboardNav = () => {
               resizeTerminal('expand');
               handled = true;
               break;
+            case 'r':
+              cycleWidth();
+              handled = true;
+              break;
           }
         }
 
@@ -119,6 +124,7 @@ export const useKeyboardNav = () => {
     addWorkspace,
     removeTerminal,
     resizeTerminal,
+    cycleWidth,
     toggleOverview,
     cycleThemes,
     toggleSearch,
