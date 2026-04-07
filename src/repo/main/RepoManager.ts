@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import type {
   RepoActionResult,
   RepoChangedFile,
@@ -54,27 +54,29 @@ interface GitCommandResult {
 }
 
 export class RepoManager {
-  public getSnapshot(cwd?: string): RepoSnapshot {
-    const repoRoot = this.resolveRepoRoot(cwd);
+  public async getSnapshot(cwd?: string): Promise<RepoSnapshot> {
+    const repoRoot = await this.resolveRepoRoot(cwd);
     if (!repoRoot) {
       return toEmptySnapshot('No Git repository detected from the current app workspace.');
     }
 
     try {
-      const branch = this.runGit(repoRoot, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout || 'HEAD';
-      const branches = this.readBranches(repoRoot);
-      const headSha = this.runGit(repoRoot, ['rev-parse', '--short', 'HEAD']).stdout || null;
-      const remotes = this.readRemotes(repoRoot);
-      const { status, changedFiles } = this.readStatus(repoRoot);
+      const [branchResult, branches, headResult, remotes, { status, changedFiles }] = await Promise.all([
+        this.runGit(repoRoot, ['rev-parse', '--abbrev-ref', 'HEAD']),
+        this.readBranches(repoRoot),
+        this.runGit(repoRoot, ['rev-parse', '--short', 'HEAD']),
+        this.readRemotes(repoRoot),
+        this.readStatus(repoRoot),
+      ]);
       const tree = this.buildTree(repoRoot);
 
       return {
         isRepo: true,
         repoRoot,
         repoName: path.basename(repoRoot),
-        branch,
+        branch: branchResult.stdout || 'HEAD',
         branches,
-        headSha,
+        headSha: headResult.stdout || null,
         remotes,
         status,
         changedFiles,
@@ -87,8 +89,8 @@ export class RepoManager {
     }
   }
 
-  public runAction(request: RunRepoActionRequest): RepoActionResult {
-    const repoRoot = this.resolveRepoRoot(request.cwd);
+  public async runAction(request: RunRepoActionRequest): Promise<RepoActionResult> {
+    const repoRoot = await this.resolveRepoRoot(request.cwd);
     if (!repoRoot) {
       const snapshot = toEmptySnapshot('No Git repository detected from the current app workspace.');
       return {
@@ -100,8 +102,8 @@ export class RepoManager {
       };
     }
 
-    const result = this.executeRepoAction(repoRoot, request);
-    const snapshot = this.getSnapshot(repoRoot);
+    const result = await this.executeRepoAction(repoRoot, request);
+    const snapshot = await this.getSnapshot(repoRoot);
     const combinedOutput = [result.stdout, result.stderr].filter((part) => part.length > 0).join('\n');
 
     return {
@@ -115,17 +117,17 @@ export class RepoManager {
     };
   }
 
-  private resolveRepoRoot(cwd?: string): string | null {
+  private async resolveRepoRoot(cwd?: string): Promise<string | null> {
     const currentDir = cwd && cwd.trim().length > 0 ? cwd : process.cwd();
-    const result = this.runGit(currentDir, ['rev-parse', '--show-toplevel'], false);
+    const result = await this.runGit(currentDir, ['rev-parse', '--show-toplevel'], false);
     if (!result.success || result.stdout.length === 0) {
       return null;
     }
     return result.stdout;
   }
 
-  private readRemotes(repoRoot: string): string[] {
-    const result = this.runGit(repoRoot, ['remote'], false);
+  private async readRemotes(repoRoot: string): Promise<string[]> {
+    const result = await this.runGit(repoRoot, ['remote'], false);
     if (!result.success || result.stdout.length === 0) {
       return [];
     }
@@ -135,8 +137,8 @@ export class RepoManager {
       .filter((line) => line.length > 0);
   }
 
-  private readBranches(repoRoot: string): string[] {
-    const result = this.runGit(repoRoot, ['branch', '--format=%(refname:short)'], false);
+  private async readBranches(repoRoot: string): Promise<string[]> {
+    const result = await this.runGit(repoRoot, ['branch', '--format=%(refname:short)'], false);
     if (!result.success || result.stdout.length === 0) {
       return [];
     }
@@ -147,11 +149,11 @@ export class RepoManager {
       .filter((line) => line.length > 0);
   }
 
-  private readStatus(repoRoot: string): {
+  private async readStatus(repoRoot: string): Promise<{
     status: RepoStatusCounts;
     changedFiles: RepoChangedFile[];
-  } {
-    const result = this.runGit(repoRoot, ['status', '--short', '--branch'], false);
+  }> {
+    const result = await this.runGit(repoRoot, ['status', '--short', '--branch'], false);
     if (!result.success) {
       return {
         status: { ...EMPTY_STATUS },
@@ -218,15 +220,20 @@ export class RepoManager {
         return [];
       }
 
-      const entries = fs
-        .readdirSync(currentPath, { withFileTypes: true })
-        .filter((entry) => !IGNORED_DIRECTORY_NAMES.has(entry.name))
-        .sort((left, right) => {
-          if (left.isDirectory() !== right.isDirectory()) {
-            return left.isDirectory() ? -1 : 1;
-          }
-          return left.name.localeCompare(right.name);
-        });
+      let entries: fs.Dirent[];
+      try {
+        entries = fs
+          .readdirSync(currentPath, { withFileTypes: true })
+          .filter((entry) => !IGNORED_DIRECTORY_NAMES.has(entry.name))
+          .sort((left, right) => {
+            if (left.isDirectory() !== right.isDirectory()) {
+              return left.isDirectory() ? -1 : 1;
+            }
+            return left.name.localeCompare(right.name);
+          });
+      } catch {
+        return [];
+      }
 
       const nodes: RepoTreeNode[] = [];
       for (const entry of entries) {
@@ -261,7 +268,10 @@ export class RepoManager {
     return walk(repoRoot, 1);
   }
 
-  private executeRepoAction(repoRoot: string, request: RunRepoActionRequest): GitCommandResult {
+  private async executeRepoAction(
+    repoRoot: string,
+    request: RunRepoActionRequest,
+  ): Promise<GitCommandResult> {
     switch (request.action) {
       case 'fetch':
         return this.runGit(repoRoot, ['fetch', '--all', '--prune'], false);
@@ -331,30 +341,57 @@ export class RepoManager {
       stderr: message,
       success: false,
       exitCode: 1,
-    };
+      };
   }
 
-  private runGit(repoRoot: string, args: string[], throwOnError = true): GitCommandResult {
-    const result = spawnSync('git', args, {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      windowsHide: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
+  private runGit(repoRoot: string, args: string[], throwOnError = true): Promise<GitCommandResult> {
+    return new Promise((resolve, reject) => {
+      const child = spawn('git', args, {
+        cwd: repoRoot,
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      child.stdout?.setEncoding('utf8');
+      child.stderr?.setEncoding('utf8');
+      child.stdout?.on('data', (chunk: string) => {
+        stdout += chunk;
+      });
+      child.stderr?.on('data', (chunk: string) => {
+        stderr += chunk;
+      });
+
+      child.on('error', (error) => {
+        if (throwOnError) {
+          reject(error);
+          return;
+        }
+        resolve({
+          stdout: stdout.trim(),
+          stderr: (stderr || error.message).trim(),
+          success: false,
+          exitCode: 1,
+        });
+      });
+
+      child.on('close', (exitCode) => {
+        const result = {
+          stdout: stdout.trim(),
+          stderr: stderr.trim(),
+          success: exitCode === 0,
+          exitCode,
+        };
+
+        if (!result.success && throwOnError) {
+          reject(new Error(result.stderr || result.stdout || `git ${args.join(' ')} failed`));
+          return;
+        }
+
+        resolve(result);
+      });
     });
-
-    const stdout = (result.stdout ?? '').trim();
-    const stderr = (result.stderr ?? '').trim();
-    const success = result.status === 0;
-
-    if (!success && throwOnError) {
-      throw new Error(stderr || stdout || `git ${args.join(' ')} failed`);
-    }
-
-    return {
-      stdout,
-      stderr,
-      success,
-      exitCode: result.status,
-    };
   }
 }
