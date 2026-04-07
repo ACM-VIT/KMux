@@ -135,9 +135,20 @@ export const TerminalViewport: React.FC<Props> = ({ terminalId, isActive }) => {
       return;
     }
 
-    let isDisposed = false;
+    if (!isActive) {
+      return;
+    }
 
-    const readGitStatus = async (): Promise<void> => {
+    let isDisposed = false;
+    let isInFlight = false;
+    let timeoutId: number | null = null;
+
+    const pollGitStatus = async (): Promise<void> => {
+      if (isDisposed || isInFlight) {
+        return;
+      }
+
+      isInFlight = true;
       try {
         const nextStatus = await window.terminalApi.getTerminalGitStatus({ terminalId });
         if (!isDisposed) {
@@ -147,19 +158,25 @@ export const TerminalViewport: React.FC<Props> = ({ terminalId, isActive }) => {
         if (!isDisposed) {
           setGitStatus(null);
         }
+      } finally {
+        isInFlight = false;
+        if (!isDisposed) {
+          timeoutId = window.setTimeout(() => {
+            void pollGitStatus();
+          }, GIT_STATUS_POLL_INTERVAL_MS);
+        }
       }
     };
 
-    void readGitStatus();
-    const intervalId = window.setInterval(() => {
-      void readGitStatus();
-    }, GIT_STATUS_POLL_INTERVAL_MS);
+    void pollGitStatus();
 
     return () => {
       isDisposed = true;
-      window.clearInterval(intervalId);
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
     };
-  }, [session?.cwd, session?.status, terminalId]);
+  }, [isActive, session?.cwd, session?.status, terminalId]);
 
   const statusLabel = getStatusLabel(session, gitStatus);
 

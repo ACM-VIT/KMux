@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useCanvasStore } from '../../../store/useCanvasStore';
 import type { RepoChangedFile } from '../../shared/repo-types';
 import { inferFileActionState, type RepoDockState } from '../hooks/useRepoDockState';
@@ -140,14 +140,28 @@ const FileListSection: React.FC<{
 export const ChangesSidebar: React.FC<ChangesSidebarProps> = ({ isOpen, onToggle, state }) => {
   const theme = useCanvasStore((store) => store.theme);
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
+  const clearCopiedPathTimeoutRef = useRef<number | null>(null);
   const snapshot = state.snapshot;
+
+  useEffect(() => {
+    return () => {
+      if (clearCopiedPathTimeoutRef.current !== null) {
+        window.clearTimeout(clearCopiedPathTimeoutRef.current);
+        clearCopiedPathTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   const copyPath = async (value: string): Promise<void> => {
     try {
       await navigator.clipboard.writeText(value);
       setCopiedPath(value);
-      window.setTimeout(() => {
+      if (clearCopiedPathTimeoutRef.current !== null) {
+        window.clearTimeout(clearCopiedPathTimeoutRef.current);
+      }
+      clearCopiedPathTimeoutRef.current = window.setTimeout(() => {
         setCopiedPath((current) => (current === value ? null : current));
+        clearCopiedPathTimeoutRef.current = null;
       }, 1500);
     } catch (error) {
       console.error('Failed to copy repo path.', error);

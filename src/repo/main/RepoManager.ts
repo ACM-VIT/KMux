@@ -12,6 +12,9 @@ import type {
 
 const MAX_TREE_DEPTH = 3;
 const MAX_TREE_ENTRIES = 250;
+const MAX_GIT_OUTPUT_CHARS = 64 * 1024;
+const GIT_COMMAND_TIMEOUT_MS = 30000;
+const TREE_READ_IGNORED_ERROR_CODES = new Set(['EACCES', 'EPERM', 'ENOENT']);
 const IGNORED_DIRECTORY_NAMES = new Set([
   '.git',
   'node_modules',
@@ -231,8 +234,12 @@ export class RepoManager {
             }
             return left.name.localeCompare(right.name);
           });
-      } catch {
-        return [];
+      } catch (error) {
+        const errorCode = this.getErrorCode(error);
+        if (errorCode && TREE_READ_IGNORED_ERROR_CODES.has(errorCode)) {
+          return [];
+        }
+        throw error;
       }
 
       const nodes: RepoTreeNode[] = [];
@@ -344,27 +351,79 @@ export class RepoManager {
     };
   }
 
+  private appendOutputChunk(current: string, chunk: string, maxChars: number): {
+    next: string;
+    truncated: boolean;
+  } {
+    if (current.length >= maxChars) {
+      return { next: current, truncated: true };
+    }
+
+    const remaining = maxChars - current.length;
+    if (chunk.length <= remaining) {
+      return { next: current + chunk, truncated: false };
+    }
+
+    return {
+      next: current + chunk.slice(0, remaining),
+      truncated: true,
+    };
+  }
+
+  private getErrorCode(error: unknown): string | null {
+    if (typeof error === 'object' && error !== null && 'code' in error) {
+      const code = (error as { code?: unknown }).code;
+      if (typeof code === 'string' && code.length > 0) {
+        return code;
+      }
+    }
+    return null;
+  }
+
   private runGit(repoRoot: string, args: string[], throwOnError = true): Promise<GitCommandResult> {
     return new Promise((resolve, reject) => {
       const child = spawn('git', args, {
         cwd: repoRoot,
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe'],
+        env: {
+          ...process.env,
+          GIT_TERMINAL_PROMPT: '0',
+          GCM_INTERACTIVE: 'never',
+        },
       });
 
       let stdout = '';
       let stderr = '';
+      let stdoutTruncated = false;
+      let stderrTruncated = false;
+      let didTimeout = false;
+      let didSettle = false;
+
+      const timeoutId = setTimeout(() => {
+        didTimeout = true;
+        child.kill();
+      }, GIT_COMMAND_TIMEOUT_MS);
 
       child.stdout?.setEncoding('utf8');
       child.stderr?.setEncoding('utf8');
       child.stdout?.on('data', (chunk: string) => {
-        stdout += chunk;
+        const appended = this.appendOutputChunk(stdout, chunk, MAX_GIT_OUTPUT_CHARS);
+        stdout = appended.next;
+        stdoutTruncated ||= appended.truncated;
       });
       child.stderr?.on('data', (chunk: string) => {
-        stderr += chunk;
+        const appended = this.appendOutputChunk(stderr, chunk, MAX_GIT_OUTPUT_CHARS);
+        stderr = appended.next;
+        stderrTruncated ||= appended.truncated;
       });
 
       child.on('error', (error) => {
+        if (didSettle) {
+          return;
+        }
+        didSettle = true;
+        clearTimeout(timeoutId);
         if (throwOnError) {
           reject(error);
           return;
@@ -378,10 +437,27 @@ export class RepoManager {
       });
 
       child.on('close', (exitCode) => {
+        if (didSettle) {
+          return;
+        }
+        didSettle = true;
+        clearTimeout(timeoutId);
+
+        const stderrMessages = [stderr.trim()];
+        if (didTimeout) {
+          stderrMessages.push(`git ${args.join(' ')} timed out after ${GIT_COMMAND_TIMEOUT_MS}ms.`);
+        }
+        if (stdoutTruncated) {
+          stderrMessages.push('git stdout was truncated.');
+        }
+        if (stderrTruncated) {
+          stderrMessages.push('git stderr was truncated.');
+        }
+
         const result = {
           stdout: stdout.trim(),
-          stderr: stderr.trim(),
-          success: exitCode === 0,
+          stderr: stderrMessages.filter((part) => part.length > 0).join('\n').trim(),
+          success: exitCode === 0 && !didTimeout,
           exitCode,
         };
 
