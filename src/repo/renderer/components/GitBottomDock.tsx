@@ -12,9 +12,8 @@ const DockButton: React.FC<{
   label: string;
   onClick: () => void;
   disabled?: boolean;
-  accent: string;
   text: string;
-}> = ({ label, onClick, disabled, accent, text }) => (
+}> = ({ label, onClick, disabled, text }) => (
   <button
     type="button"
     className="rounded-sm px-2.5 py-1.5 text-[10px] uppercase tracking-[0.16em] transition-colors"
@@ -43,10 +42,14 @@ export const GitBottomDock: React.FC<GitBottomDockProps> = ({ isOpen, onToggle, 
   const snapshot = state.snapshot;
 
   useEffect(() => {
-    if (snapshot?.branch) {
-      setSelectedBranch(snapshot.branch);
-    }
-  }, [snapshot?.branch]);
+    const branches = snapshot?.branches ?? [];
+    const nextSelectedBranch =
+      snapshot?.branch && branches.includes(snapshot.branch)
+        ? snapshot.branch
+        : (branches[0] ?? '');
+
+    setSelectedBranch(nextSelectedBranch);
+  }, [snapshot?.branch, snapshot?.branches]);
 
   const runAction = async (
     action: RepoAction,
@@ -118,12 +121,12 @@ export const GitBottomDock: React.FC<GitBottomDockProps> = ({ isOpen, onToggle, 
         {isOpen ? (
           <div className="flex flex-1 flex-col gap-3 px-3 py-3">
             <div className="flex flex-wrap items-center gap-2">
-              <DockButton label="Fetch" onClick={() => { void runAction('fetch'); }} disabled={state.isRunningAction} accent={theme.accent} text={theme.text} />
-              <DockButton label="Pull" onClick={() => { void runAction('pull'); }} disabled={state.isRunningAction} accent={theme.accent} text={theme.text} />
-              <DockButton label="Push" onClick={() => { void runAction('push'); }} disabled={state.isRunningAction} accent={theme.accent} text={theme.text} />
-              <DockButton label="Stage All" onClick={() => { void runAction('stage-all'); }} disabled={state.isRunningAction} accent={theme.accent} text={theme.text} />
-              <DockButton label="Unstage" onClick={() => { void runAction('unstage-all'); }} disabled={state.isRunningAction} accent={theme.accent} text={theme.text} />
-              <DockButton label="Refresh" onClick={() => { void state.refreshSnapshot(); }} disabled={state.isRunningAction} accent={theme.accent} text={theme.text} />
+              <DockButton label="Fetch" onClick={() => { void runAction('fetch'); }} disabled={state.isRunningAction} text={theme.text} />
+              <DockButton label="Pull" onClick={() => { void runAction('pull'); }} disabled={state.isRunningAction} text={theme.text} />
+              <DockButton label="Push" onClick={() => { void runAction('push'); }} disabled={state.isRunningAction} text={theme.text} />
+              <DockButton label="Stage All" onClick={() => { void runAction('stage-all'); }} disabled={state.isRunningAction} text={theme.text} />
+              <DockButton label="Unstage" onClick={() => { void runAction('unstage-all'); }} disabled={state.isRunningAction} text={theme.text} />
+              <DockButton label="Refresh" onClick={() => { void state.refreshSnapshot(); }} disabled={state.isRunningAction} text={theme.text} />
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -143,7 +146,6 @@ export const GitBottomDock: React.FC<GitBottomDockProps> = ({ isOpen, onToggle, 
                 label="Checkout"
                 onClick={() => { void runAction('checkout-branch', { branch: selectedBranch }); }}
                 disabled={state.isRunningAction || selectedBranch.trim().length === 0 || selectedBranch === snapshot?.branch}
-                accent={theme.accent}
                 text={theme.text}
               />
               <input
@@ -157,7 +159,6 @@ export const GitBottomDock: React.FC<GitBottomDockProps> = ({ isOpen, onToggle, 
                 label="Commit"
                 onClick={() => { void runAction('commit', { message: commitMessage }); }}
                 disabled={state.isRunningAction || commitMessage.trim().length === 0}
-                accent={theme.accent}
                 text={theme.text}
               />
             </div>

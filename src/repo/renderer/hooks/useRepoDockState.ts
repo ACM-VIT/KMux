@@ -90,6 +90,7 @@ export const useRepoDockState = (): RepoDockState => {
   const activeCwd = activeTerminal ? sessions[activeTerminal.id]?.cwd : undefined;
 
   const refreshSnapshot = async (): Promise<void> => {
+    setIsLoading(true);
     try {
       const nextSnapshot = await window.repoApi.getRepoSnapshot({ cwd: activeCwd });
       setSnapshot(nextSnapshot);
@@ -136,8 +137,21 @@ export const useRepoDockState = (): RepoDockState => {
     action: RepoAction,
     options?: { filePath?: string; message?: string; branch?: string },
   ): Promise<RepoActionResult | null> => {
-    if (!activeCwd || isRunningAction) {
+    if (isRunningAction) {
       return null;
+    }
+
+    if (!activeCwd) {
+      const missingSessionMessage = 'An active terminal session is required to run Git actions.';
+      const fallbackResult = {
+        ok: false,
+        action,
+        message: missingSessionMessage,
+        output: '',
+        snapshot: snapshot ?? createFallbackSnapshot(missingSessionMessage),
+      } satisfies RepoActionResult;
+      setActionFeedback(fallbackResult);
+      return fallbackResult;
     }
 
     setIsRunningAction(true);
