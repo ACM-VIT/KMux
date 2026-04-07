@@ -38,6 +38,7 @@ export const TerminalViewport: React.FC<Props> = ({ terminalId, isActive }) => {
   const bootstrappedRef = useRef(false);
   const hideScrollbarTimerRef = useRef<number | null>(null);
   const gitStatusRefreshTimerRef = useRef<number | null>(null);
+  const gitStatusRequestIdRef = useRef(0);
   const [isScrolling, setIsScrolling] = useState(false);
   const [gitStatus, setGitStatus] = useState<TerminalGitStatus | null>(null);
 
@@ -48,25 +49,42 @@ export const TerminalViewport: React.FC<Props> = ({ terminalId, isActive }) => {
     latestSessionRef.current = session;
   }, [session]);
 
+  useEffect(() => {
+    return () => {
+      if (gitStatusRefreshTimerRef.current !== null) {
+        window.clearTimeout(gitStatusRefreshTimerRef.current);
+        gitStatusRefreshTimerRef.current = null;
+      }
+      gitStatusRequestIdRef.current += 1;
+    };
+  }, []);
+
   const refreshGitStatus = useCallback(async (): Promise<void> => {
+    const currentRequestId = ++gitStatusRequestIdRef.current;
     const activeSession = latestSessionRef.current;
     if (!activeSession || activeSession.status !== 'running') {
-      setGitStatus(null);
+      if (currentRequestId === gitStatusRequestIdRef.current) {
+        setGitStatus(null);
+      }
       return;
     }
 
     try {
       const status = await window.terminalApi.getTerminalGitStatus({ terminalId });
-      setGitStatus(status);
+      if (currentRequestId === gitStatusRequestIdRef.current) {
+        setGitStatus(status);
+      }
     } catch (error) {
-      setGitStatus(null);
+      if (currentRequestId === gitStatusRequestIdRef.current) {
+        setGitStatus(null);
+      }
       console.error(`Failed to read git status for terminal "${terminalId}".`, error);
     }
   }, [terminalId]);
 
   const scheduleGitStatusRefresh = useCallback((): void => {
     if (gitStatusRefreshTimerRef.current !== null) {
-      return;
+      window.clearTimeout(gitStatusRefreshTimerRef.current);
     }
 
     gitStatusRefreshTimerRef.current = window.setTimeout(() => {
