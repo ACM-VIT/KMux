@@ -1,5 +1,6 @@
 import type {
   CreateTerminalRequest,
+  GetTerminalGitStatusRequest,
   KillTerminalRequest,
   ResizeTerminalRequest,
   WriteTerminalRequest,
@@ -39,6 +40,7 @@ export const TERMINAL_IPC_CHANNELS = {
   kill: 'terminal:kill',
   list: 'terminal:list',
   listProfiles: 'terminal:list-profiles',
+  gitStatus: 'terminal:git-status',
   output: 'terminal:output',
   exit: 'terminal:exit',
   state: 'terminal:state',
@@ -88,6 +90,15 @@ export function assertKillTerminalRequest(
 ): asserts payload is KillTerminalRequest {
   if (!isRecord(payload)) {
     throw new Error('Invalid kill-terminal payload.');
+  }
+  assertNonEmptyString(payload.terminalId, 'terminalId');
+}
+
+export function assertGetTerminalGitStatusRequest(
+  payload: unknown,
+): asserts payload is GetTerminalGitStatusRequest {
+  if (!isRecord(payload)) {
+    throw new Error('Invalid git-status payload.');
   }
   assertNonEmptyString(payload.terminalId, 'terminalId');
 }

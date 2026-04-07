@@ -40,6 +40,10 @@ export interface KillTerminalRequest {
   terminalId: string;
 }
 
+export interface GetTerminalGitStatusRequest {
+  terminalId: string;
+}
+
 export interface TerminalOutputEvent {
   terminalId: string;
   data: string;
@@ -61,6 +65,12 @@ export interface TerminalErrorEvent {
   message: string;
 }
 
+export interface TerminalGitStatus {
+  terminalId: string;
+  branchName: string | null;
+  isDirty: boolean;
+}
+
 export interface TerminalApi {
   createTerminal: (request: CreateTerminalRequest) => Promise<TerminalSessionSnapshot>;
   writeTerminal: (request: WriteTerminalRequest) => Promise<void>;
@@ -68,6 +78,7 @@ export interface TerminalApi {
   killTerminal: (request: KillTerminalRequest) => Promise<void>;
   listTerminals: () => Promise<TerminalSessionSnapshot[]>;
   listTerminalProfiles: () => Promise<TerminalProfile[]>;
+  getTerminalGitStatus: (request: GetTerminalGitStatusRequest) => Promise<TerminalGitStatus>;
   onTerminalOutput: (listener: (event: TerminalOutputEvent) => void) => () => void;
   onTerminalExit: (listener: (event: TerminalExitEvent) => void) => () => void;
   onTerminalState: (listener: (event: TerminalStateEvent) => void) => () => void;

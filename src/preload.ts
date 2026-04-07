@@ -6,6 +6,7 @@ import type {
   TerminalApi,
   TerminalErrorEvent,
   TerminalExitEvent,
+  TerminalGitStatus,
   TerminalOutputEvent,
   TerminalProfile,
   TerminalSessionSnapshot,
@@ -40,6 +41,9 @@ const terminalApi: TerminalApi = {
   },
   listTerminalProfiles: async (): Promise<TerminalProfile[]> => {
     return ipcRenderer.invoke(TERMINAL_IPC_CHANNELS.listProfiles);
+  },
+  getTerminalGitStatus: async (request): Promise<TerminalGitStatus> => {
+    return ipcRenderer.invoke(TERMINAL_IPC_CHANNELS.gitStatus, request);
   },
   onTerminalOutput: (listener) => {
     return subscribe<TerminalOutputEvent>(TERMINAL_IPC_CHANNELS.output, listener);

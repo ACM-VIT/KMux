@@ -2,6 +2,7 @@ import type { BrowserWindow, IpcMain } from 'electron';
 import {
   TERMINAL_IPC_CHANNELS,
   assertCreateTerminalRequest,
+  assertGetTerminalGitStatusRequest,
   assertKillTerminalRequest,
   assertResizeTerminalRequest,
   assertWriteTerminalRequest,
@@ -66,6 +67,11 @@ export const registerTerminalIpc = ({
     return terminalManager.listProfiles();
   });
 
+  ipcMain.handle(TERMINAL_IPC_CHANNELS.gitStatus, (_event, payload: unknown) => {
+    assertGetTerminalGitStatusRequest(payload);
+    return terminalManager.getTerminalGitStatus(payload);
+  });
+
   const detachOutput = terminalManager.onOutput((event: TerminalOutputEvent) => {
     broadcastToWindows(getWindows(), TERMINAL_IPC_CHANNELS.output, event);
   });
@@ -86,6 +92,7 @@ export const registerTerminalIpc = ({
     ipcMain.removeHandler(TERMINAL_IPC_CHANNELS.kill);
     ipcMain.removeHandler(TERMINAL_IPC_CHANNELS.list);
     ipcMain.removeHandler(TERMINAL_IPC_CHANNELS.listProfiles);
+    ipcMain.removeHandler(TERMINAL_IPC_CHANNELS.gitStatus);
 
     detachOutput();
     detachExit();
