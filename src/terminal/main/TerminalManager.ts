@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
 import os from 'node:os';
 import * as pty from 'node-pty';
 import type { IPty } from 'node-pty';
@@ -15,7 +16,11 @@ import type {
   WriteTerminalRequest,
 } from '../shared/terminal-types';
 import { listTerminalProfiles, resolveShell } from './shell/resolveShell';
-import { extractCwdFromTerminalOutput, prepareShellLaunch } from './shell/cwdIntegration';
+import {
+  consumeTerminalInputData,
+  extractTrackedCwdFromOutput,
+  resolveNextCwdFromCommand,
+} from './utils/cwd-tracking';
 import { buildPtyEnv } from './utils/env';
 
 const TERMINAL_EVENT_NAMES = {
@@ -30,7 +35,7 @@ const MIN_DIMENSION = 2;
 interface TerminalSessionRecord {
   pty: IPty;
   snapshot: TerminalSessionSnapshot;
-  outputBuffer: string;
+  inputBuffer: string;
 }
 
 const normalizeDimension = (value: number): number => {
@@ -42,6 +47,11 @@ const getErrorMessage = (error: unknown): string => {
     return error.message;
   }
   return String(error);
+};
+
+const isExistingDirectory = (candidatePath: string): boolean => {
+  const stats = fs.statSync(candidatePath, { throwIfNoEntry: false });
+  return Boolean(stats?.isDirectory());
 };
 
 export class TerminalManager {
@@ -58,16 +68,15 @@ export class TerminalManager {
     const cols = normalizeDimension(request.cols);
     const rows = normalizeDimension(request.rows);
     const cwd = request.cwd ?? os.homedir();
-    const launch = prepareShellLaunch(shell, process.platform, buildPtyEnv(process.env));
 
     let ptyProcess: IPty;
     try {
-      ptyProcess = pty.spawn(launch.command, launch.args, {
+      ptyProcess = pty.spawn(shell.command, shell.args, {
         name: 'xterm-256color',
         cols,
         rows,
         cwd,
-        env: launch.env,
+        env: buildPtyEnv(process.env),
         useConpty: process.platform === 'win32',
       });
     } catch (error) {
@@ -90,24 +99,26 @@ export class TerminalManager {
       status: 'running',
     };
 
-    this.sessions.set(request.terminalId, {
+    const sessionRecord: TerminalSessionRecord = {
       pty: ptyProcess,
       snapshot,
-      outputBuffer: '',
-    });
+      inputBuffer: '',
+    };
+
+    this.sessions.set(request.terminalId, sessionRecord);
 
     ptyProcess.onData((data) => {
-      const session = this.sessions.get(request.terminalId);
-      if (session) {
-        const parsed = extractCwdFromTerminalOutput(session.outputBuffer, data);
-        session.outputBuffer = parsed.buffer;
-        if (parsed.cwd && parsed.cwd !== session.snapshot.cwd) {
-          session.snapshot = {
-            ...session.snapshot,
-            cwd: parsed.cwd,
-          };
-          this.emitState(session.snapshot);
-        }
+      const trackedCwd = extractTrackedCwdFromOutput(data, process.platform);
+      if (
+        trackedCwd &&
+        trackedCwd !== sessionRecord.snapshot.cwd &&
+        isExistingDirectory(trackedCwd)
+      ) {
+        sessionRecord.snapshot = {
+          ...sessionRecord.snapshot,
+          cwd: trackedCwd,
+        };
+        this.emitState(sessionRecord.snapshot);
       }
 
       this.events.emit(TERMINAL_EVENT_NAMES.output, {
@@ -117,6 +128,7 @@ export class TerminalManager {
     });
 
     ptyProcess.onExit(({ exitCode, signal }) => {
+      const latestSnapshot = sessionRecord.snapshot;
       this.sessions.delete(request.terminalId);
 
       this.events.emit(TERMINAL_EVENT_NAMES.exit, {
@@ -126,7 +138,7 @@ export class TerminalManager {
       } satisfies TerminalExitEvent);
 
       this.emitState({
-        ...snapshot,
+        ...latestSnapshot,
         status: 'exited',
         exitCode,
         signal,
@@ -142,6 +154,25 @@ export class TerminalManager {
     if (!session) {
       throw new Error(`Terminal "${request.terminalId}" is not running.`);
     }
+
+    session.inputBuffer = consumeTerminalInputData(session.inputBuffer, request.data, (commandLine) => {
+      const nextCwd = resolveNextCwdFromCommand(
+        commandLine,
+        session.snapshot.cwd,
+        os.homedir(),
+        process.platform,
+      );
+      if (!nextCwd || nextCwd === session.snapshot.cwd || !isExistingDirectory(nextCwd)) {
+        return;
+      }
+
+      session.snapshot = {
+        ...session.snapshot,
+        cwd: nextCwd,
+      };
+      this.emitState(session.snapshot);
+    });
+
     session.pty.write(request.data);
   }
 
