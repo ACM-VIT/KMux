@@ -2,46 +2,69 @@ import React, { useState, useEffect } from 'react';
 import { useCanvasStore } from '../store/useCanvasStore';
 import type { Workspace } from '../store/useCanvasStore';
 import { TerminalPanel } from './TerminalPanel';
-import { getWidthVW, GAPS_VW } from '../utils/layout';
+import { getWidthVW } from '../utils/layout';
+import { CAMERA_PADDING, GAPS_VW, SCREEN_WIDTH_VW } from '../lib/constants';
 
 interface Props {
   workspace: Workspace;
   isActiveWorkspace: boolean;
 }
 
-
 export const WorkspaceRow: React.FC<Props> = ({ workspace, isActiveWorkspace }) => {
   const [viewOffset, setViewOffset] = useState(0);
-  const { theme } = useCanvasStore();
+  const { theme, isTerminalFullscreen } = useCanvasStore();
+  const totalRowWidth = workspace.terminals.reduce(
+    (total, terminal) => total + getWidthVW(terminal.widthFraction) + GAPS_VW,
+    0,
+  );
+  const fitsOnScreen = totalRowWidth <= SCREEN_WIDTH_VW;
 
   useEffect(() => {
     if (workspace.terminals.length === 0) return;
 
     const { activeTerminalIndex, terminals } = workspace;
-
-    let totalRowWidth = 0;
-    terminals.forEach(t => {
-      totalRowWidth += getWidthVW(t.widthFraction) + GAPS_VW;
-    });
-    totalRowWidth -= GAPS_VW;
-
-    let targetOffset = 0;
-
-    if (totalRowWidth <= 102) {
-      targetOffset = (totalRowWidth - 100) / 2;
-    } else {
-      let activeLeft = 0;
-      for (let i = 0; i < activeTerminalIndex; i++) {
-        activeLeft += getWidthVW(terminals[i].widthFraction) + GAPS_VW;
-      }
-      const activeWidth = getWidthVW(terminals[activeTerminalIndex].widthFraction);
-      targetOffset = activeLeft + (activeWidth / 2) - 50 + (GAPS_VW / 2);
+    let activeLeft = 0;
+    for (let i = 0; i < activeTerminalIndex; i++) {
+      activeLeft += getWidthVW(terminals[i].widthFraction) + GAPS_VW;
     }
-    
+    const activeWidth = getWidthVW(terminals[activeTerminalIndex].widthFraction);
+    const activeRight = activeLeft + activeWidth + GAPS_VW;
+
+    let targetOffset = viewOffset;
+
+    if (terminals.length === 1) {
+      const solitaryWidth = getWidthVW(terminals[0].widthFraction);
+      targetOffset = (solitaryWidth + GAPS_VW - SCREEN_WIDTH_VW) / 2;
+    } else {
+      const isLastTerminal = activeTerminalIndex === terminals.length - 1;
+
+      if (isLastTerminal) {
+        targetOffset = activeRight - SCREEN_WIDTH_VW + CAMERA_PADDING;
+      } else if (activeLeft < viewOffset + CAMERA_PADDING) {
+        targetOffset = activeLeft - CAMERA_PADDING;
+      } else if (activeRight > viewOffset + SCREEN_WIDTH_VW - CAMERA_PADDING) {
+        targetOffset = activeRight - SCREEN_WIDTH_VW + CAMERA_PADDING;
+      }
+
+      if (totalRowWidth <= SCREEN_WIDTH_VW && !isLastTerminal) {
+        targetOffset = 0;
+      } else if (totalRowWidth > SCREEN_WIDTH_VW) {
+        targetOffset = Math.max(0, targetOffset);
+      }
+    }
+
     if (Math.abs(targetOffset - viewOffset) > 0.01) {
       setViewOffset(targetOffset);
     }
-  }, [workspace.activeTerminalIndex, workspace.terminals]);
+  }, [workspace.activeTerminalIndex, workspace.terminals, viewOffset, totalRowWidth]);
+
+  const activeTerminal = workspace.terminals[workspace.activeTerminalIndex];
+  const visibleTerminals =
+    isActiveWorkspace && isTerminalFullscreen && activeTerminal
+      ? [activeTerminal]
+      : workspace.terminals;
+  const fullscreenTerminalIndex =
+    isActiveWorkspace && isTerminalFullscreen ? workspace.activeTerminalIndex : undefined;
 
   return (
     <div
@@ -75,16 +98,29 @@ export const WorkspaceRow: React.FC<Props> = ({ workspace, isActiveWorkspace }) 
       ) : (
         <div
           className="flex transition-transform duration-[800ms] ease-[cubic-bezier(0.25,1,0.5,1)]"
-          style={{ transform: `translateX(${-viewOffset}vw)` }}
+          style={{
+            transform:
+              isActiveWorkspace && (isTerminalFullscreen || fitsOnScreen)
+                ? 'translateX(0)'
+                : `translateX(${-viewOffset}vw)`,
+            width: isActiveWorkspace && (isTerminalFullscreen || fitsOnScreen) ? '100%' : undefined,
+            justifyContent:
+              isActiveWorkspace && (isTerminalFullscreen || fitsOnScreen) ? 'center' : undefined,
+          }}
         >
-          {workspace.terminals.map((term, index) => (
-            <TerminalPanel
-              key={term.id}
-              terminal={term}
-              terminalIndex={index}
-              isActive={isActiveWorkspace && index === workspace.activeTerminalIndex}
-            />
-          ))}
+          {visibleTerminals.map((term, index) => {
+            const terminalPanelIndex = fullscreenTerminalIndex ?? index;
+            const terminalIsActive = isActiveWorkspace && term.id === activeTerminal?.id;
+
+            return (
+              <TerminalPanel
+                key={term.id}
+                terminal={term}
+                terminalIndex={terminalPanelIndex}
+                isActive={terminalIsActive}
+              />
+            );
+          })}
         </div>
       )}
     </div>

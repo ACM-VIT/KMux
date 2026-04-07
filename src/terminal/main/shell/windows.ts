@@ -9,6 +9,7 @@ import {
 import type { ResolvedShell } from './resolveShell';
 
 const vsEditions = ['Enterprise', 'Professional', 'Community', 'BuildTools'] as const;
+const vsVersions = ['2022', '2019', '2017'] as const;
 
 interface WindowsProfileEntry {
   profile: TerminalProfile;
@@ -85,6 +86,84 @@ const findExecutableInPath = (
   return null;
 };
 
+const listVsInstallationRoots = (
+  env: NodeJS.ProcessEnv,
+  runtime: WindowsProfileRuntime,
+): string[] => {
+  const roots: string[] = [];
+  const seen = new Set<string>();
+
+  const pushRoot = (candidatePath: string | null | undefined): void => {
+    if (!candidatePath || seen.has(candidatePath) || !runtime.pathExists(candidatePath)) {
+      return;
+    }
+    seen.add(candidatePath);
+    roots.push(candidatePath);
+  };
+
+  const programData = env.ProgramData ?? 'C:\\ProgramData';
+  const vsWherePath = findFirstExistingPath(
+    [
+      path.win32.join(
+        programData,
+        'Microsoft',
+        'VisualStudio',
+        'Packages',
+        '_Instances',
+        'vswhere.exe',
+      ),
+      path.win32.join(
+        env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)',
+        'Microsoft Visual Studio',
+        'Installer',
+        'vswhere.exe',
+      ),
+      path.win32.join(
+        env.ProgramFiles ?? 'C:\\Program Files',
+        'Microsoft Visual Studio',
+        'Installer',
+        'vswhere.exe',
+      ),
+      findExecutableInPath(env, ['vswhere.exe'], runtime),
+    ].filter((value): value is string => Boolean(value)),
+    runtime,
+  );
+
+  if (vsWherePath) {
+    const result = runtime.runCommand(vsWherePath, [
+      '-products',
+      '*',
+      '-requires',
+      'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+      '-property',
+      'installationPath',
+    ]);
+
+    if (result.status === 0) {
+      result.stdout
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .forEach((line) => pushRoot(line));
+    }
+  }
+
+  const programRoots = [
+    env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)',
+    env.ProgramFiles ?? 'C:\\Program Files',
+  ];
+
+  for (const rootPath of programRoots) {
+    for (const version of vsVersions) {
+      for (const edition of vsEditions) {
+        pushRoot(path.win32.join(rootPath, 'Microsoft Visual Studio', version, edition));
+      }
+    }
+  }
+
+  return roots;
+};
+
 const resolveCmd = (env: NodeJS.ProcessEnv): ResolvedShell => {
   if (typeof env.ComSpec === 'string' && env.ComSpec.trim().length > 0) {
     return {
@@ -150,26 +229,9 @@ const findVsToolPath = (
   toolFileName: string,
   runtime: WindowsProfileRuntime,
 ): string | null => {
-  const programRoots = [
-    env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)',
-    env.ProgramFiles ?? 'C:\\Program Files',
-  ];
-
   const candidates: string[] = [];
-  for (const rootPath of programRoots) {
-    for (const edition of vsEditions) {
-      candidates.push(
-        path.win32.join(
-          rootPath,
-          'Microsoft Visual Studio',
-          '2022',
-          edition,
-          'Common7',
-          'Tools',
-          toolFileName,
-        ),
-      );
-    }
+  for (const installationRoot of listVsInstallationRoots(env, runtime)) {
+    candidates.push(path.win32.join(installationRoot, 'Common7', 'Tools', toolFileName));
   }
 
   return findFirstExistingPath(candidates, runtime);
@@ -302,17 +364,17 @@ export const buildWindowsProfileEntries = (
   const vsDevCmdPath = findVsToolPath(env, 'VsDevCmd.bat', runtime);
   if (vsDevCmdPath) {
     entries.push(
-      createProfileEntry(
-        'Developer Command Prompt for VS 2022',
-        {
-          command: commandPrompt.command,
-          args: ['/k', `"${vsDevCmdPath}" -arch=x64 -host_arch=x64`],
-          label: 'Developer Command Prompt for VS 2022',
-        },
-        ['developer-command-prompt-vs-2022'],
-      ),
-    );
-  }
+        createProfileEntry(
+          'Developer Command Prompt for Visual Studio',
+          {
+            command: commandPrompt.command,
+            args: ['/k', `"${vsDevCmdPath}" -arch=x64 -host_arch=x64`],
+            label: 'Developer Command Prompt for Visual Studio',
+          },
+          ['developer-command-prompt', 'developer-command-prompt-vs'],
+        ),
+      );
+    }
 
   const launchVsDevShellPath = findVsToolPath(env, 'Launch-VsDevShell.ps1', runtime);
   if (launchVsDevShellPath && (windowsPowerShell || powerShell)) {
@@ -320,13 +382,13 @@ export const buildWindowsProfileEntries = (
     if (shellBase) {
       entries.push(
         createProfileEntry(
-          'Developer PowerShell for VS 2022',
+          'Developer PowerShell for Visual Studio',
           {
             command: shellBase.command,
             args: ['-NoLogo', '-NoExit', '-ExecutionPolicy', 'Bypass', '-File', launchVsDevShellPath],
-            label: 'Developer PowerShell for VS 2022',
+            label: 'Developer PowerShell for Visual Studio',
           },
-          ['developer-powershell-vs-2022'],
+          ['developer-powershell', 'developer-powershell-vs'],
         ),
       );
     }

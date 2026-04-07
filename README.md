@@ -1,6 +1,6 @@
 # KMux
 
-Basic Electron Forge project with Vite, TypeScript, React/Tailwind dependencies, and terminal-related packages installed.
+KMux is an Electron desktop app for managing multiple terminal workspaces with keyboard-first navigation, profile-aware shell launching, and a cinematic workspace canvas.
 
 ## Getting Started
 
@@ -21,9 +21,18 @@ pnpm start
 ```bash
 pnpm lint
 pnpm typecheck
+pnpm test:terminal
 pnpm package
 pnpm make
 ```
+
+## Features
+
+- Multiple workspaces with independent terminal stacks
+- Keyboard-driven terminal and workspace navigation
+- Searchable terminal switcher
+- Dynamic shell profile discovery across Windows, macOS, and Linux
+- Embedded xterm.js terminal sessions backed by `node-pty`
 
 ## `node-pty` Prerequisites
 
@@ -68,7 +77,6 @@ If you are setting up a fresh Windows machine for this project, the practical mi
 ## Notes
 
 - This repo is standardized on `pnpm`.
-- `node-pty` and `@xterm/xterm` are installed and wired into the app runtime.
-- Terminal sessions are OS-shell aware (`PowerShell/cmd` on Windows, login shell on macOS/Linux).
+- Terminal sessions are OS-shell aware and profile-aware.
 - Terminal process state persists while the app is open; sessions do not auto-restore after app restart in v1.
 - If `node-pty` fails to build or run, verify the OS-specific native build prerequisites above first.
