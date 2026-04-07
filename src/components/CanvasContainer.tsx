@@ -17,10 +17,11 @@ import {
 export const CanvasContainer: React.FC = () => {
   const { workspaces, activeWorkspaceIndex, isOverview, theme } = useCanvasStore();
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isBottomDockOpen, setIsBottomDockOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isBottomDockOpen, setIsBottomDockOpen] = useState(false);
   const repoDockState = useRepoDockState();
-  const sidebarWidth = isSidebarOpen ? 320 : 58;
+  const hasGitRepo = repoDockState.snapshot?.isRepo === true;
+  const sidebarWidth = hasGitRepo ? (isSidebarOpen ? 320 : 58) : 0;
   const bottomDockHeight = isBottomDockOpen ? 132 : 42;
   const translateY = -(activeWorkspaceIndex * SCREEN_HEIGHT_VH);
 
@@ -160,20 +161,22 @@ export const CanvasContainer: React.FC = () => {
         </span>
       </div>
 
-      <div
-        className="absolute right-0 top-0 transition-[width] duration-300 ease-out"
-        style={{
-          zIndex: Z_LAYERS.CONTROLS + 30,
-          width: `${sidebarWidth}px`,
-          height: '100%',
-        }}
-      >
-        <ChangesSidebar
-          isOpen={isSidebarOpen}
-          onToggle={() => setIsSidebarOpen((current) => !current)}
-          state={repoDockState}
-        />
-      </div>
+      {hasGitRepo ? (
+        <div
+          className="absolute right-0 top-0 transition-[width] duration-300 ease-out"
+          style={{
+            zIndex: Z_LAYERS.CONTROLS + 30,
+            width: `${sidebarWidth}px`,
+            height: '100%',
+          }}
+        >
+          <ChangesSidebar
+            isOpen={isSidebarOpen}
+            onToggle={() => setIsSidebarOpen((current) => !current)}
+            state={repoDockState}
+          />
+        </div>
+      ) : null}
 
       <div
         className="absolute bottom-0 left-0 transition-[width,height] duration-300 ease-out"

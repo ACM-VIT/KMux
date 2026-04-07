@@ -34,7 +34,7 @@ const FileActionButton: React.FC<{
 }> = ({ label, onClick, disabled, accent, text }) => (
   <button
     type="button"
-    className="rounded-md px-2 py-1.5 text-[10px] uppercase tracking-[0.22em]"
+    className="rounded px-1.5 py-0.5 text-[9px] uppercase tracking-[0.16em]"
     style={{
       color: disabled ? `${text}66` : text,
       background: disabled ? 'rgba(255,255,255,0.03)' : `${accent}16`,
@@ -73,57 +73,60 @@ const FileListSection: React.FC<{
   onCopyPath,
   onAction,
 }) => (
-  <section className="space-y-3">
+  <section className="space-y-2">
     <SectionHeader label={title} count={files.length} accent={accent} textDim={textDim} />
     {files.length > 0 ? (
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {files.map((file) => {
           const fileState = inferFileActionState(file);
           return (
-            <div key={`${file.status}:${file.path}`} className="rounded-md border px-3 py-2" style={{ borderColor: `${accent}20` }}>
-              <button
-                type="button"
-                className="w-full text-left"
-                onClick={() => {
-                  onCopyPath(file.path);
-                }}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <span className="inline-block min-w-[32px] text-[10px] uppercase tracking-[0.2em]" style={{ color: accent }}>
-                    {file.status}
-                  </span>
-                  <span className="flex-1 break-all text-[11px]" style={{ color: textDim }}>
-                    {file.path}
-                  </span>
-                  {copiedPath === file.path ? (
-                    <span className="text-[9px] uppercase tracking-[0.22em]" style={{ color: accent }}>
-                      copied
+            <div key={`${file.status}:${file.path}`} className="rounded-sm border px-2 py-1.5" style={{ borderColor: `${accent}20` }}>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="min-w-0 flex-1 text-left"
+                  title={`Copy path: ${file.path}`}
+                  onClick={() => {
+                    onCopyPath(file.path);
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex min-w-[28px] text-[9px] uppercase tracking-[0.16em]" style={{ color: accent }}>
+                      {file.status}
                     </span>
-                  ) : null}
+                    <span className="truncate text-[10px]" style={{ color: textDim }} title={file.path}>
+                      {file.path}
+                    </span>
+                  </div>
+                </button>
+                {copiedPath === file.path ? (
+                  <span className="shrink-0 text-[8px] uppercase tracking-[0.18em]" style={{ color: accent }}>
+                    copied
+                  </span>
+                ) : null}
+                <div className="flex shrink-0 items-center gap-1">
+                  <FileActionButton
+                    label="Stage"
+                    onClick={() => onAction('stage-file', file.path)}
+                    disabled={isRunningAction || !fileState.canStage}
+                    accent={accent}
+                    text={text}
+                  />
+                  <FileActionButton
+                    label="Unstage"
+                    onClick={() => onAction('unstage-file', file.path)}
+                    disabled={isRunningAction || !fileState.canUnstage}
+                    accent={accent}
+                    text={text}
+                  />
+                  <FileActionButton
+                    label="Discard"
+                    onClick={() => onAction('discard-file', file.path)}
+                    disabled={isRunningAction || !fileState.canDiscard}
+                    accent="#ef4444"
+                    text={text}
+                  />
                 </div>
-              </button>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <FileActionButton
-                  label="Stage"
-                  onClick={() => onAction('stage-file', file.path)}
-                  disabled={isRunningAction || !fileState.canStage}
-                  accent={accent}
-                  text={text}
-                />
-                <FileActionButton
-                  label="Unstage"
-                  onClick={() => onAction('unstage-file', file.path)}
-                  disabled={isRunningAction || !fileState.canUnstage}
-                  accent={accent}
-                  text={text}
-                />
-                <FileActionButton
-                  label="Discard"
-                  onClick={() => onAction('discard-file', file.path)}
-                  disabled={isRunningAction || !fileState.canDiscard}
-                  accent="#ef4444"
-                  text={text}
-                />
               </div>
             </div>
           );
@@ -208,10 +211,10 @@ export const ChangesSidebar: React.FC<ChangesSidebarProps> = ({ isOpen, onToggle
         </div>
 
         {isOpen ? (
-          <div className="repo-sidebar-scroll flex-1 overflow-y-auto px-4 py-4">
+          <div className="repo-sidebar-scroll flex-1 overflow-y-auto px-3 py-3">
             {snapshot?.isRepo ? (
-              <div className="space-y-6">
-                <div className="rounded-xl border px-3 py-3" style={{ borderColor: theme.border }}>
+              <div className="space-y-4">
+                <div className="rounded-lg border px-3 py-2.5" style={{ borderColor: theme.border }}>
                   <div className="text-[10px] uppercase tracking-[0.28em]" style={{ color: theme.accent }}>
                     repository
                   </div>
