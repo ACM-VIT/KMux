@@ -399,11 +399,28 @@ export class RepoManager {
       let stderrTruncated = false;
       let didTimeout = false;
       let didSettle = false;
+      let didExit = false;
 
-      const timeoutId = setTimeout(() => {
+      let timeoutId: NodeJS.Timeout | null = setTimeout(() => {
+        if (didSettle || didExit || child.exitCode !== null) {
+          return;
+        }
+
         didTimeout = true;
         child.kill();
       }, GIT_COMMAND_TIMEOUT_MS);
+
+      const clearProcessTimeout = (): void => {
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+      };
+
+      child.on('exit', () => {
+        didExit = true;
+        clearProcessTimeout();
+      });
 
       child.stdout?.setEncoding('utf8');
       child.stderr?.setEncoding('utf8');
@@ -423,7 +440,7 @@ export class RepoManager {
           return;
         }
         didSettle = true;
-        clearTimeout(timeoutId);
+        clearProcessTimeout();
         if (throwOnError) {
           reject(error);
           return;
@@ -441,7 +458,7 @@ export class RepoManager {
           return;
         }
         didSettle = true;
-        clearTimeout(timeoutId);
+        clearProcessTimeout();
 
         const stderrMessages = [stderr.trim()];
         if (didTimeout) {
