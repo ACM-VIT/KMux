@@ -63,9 +63,6 @@ export const TerminalViewport: React.FC<Props> = ({ terminalId, isActive }) => {
     const currentRequestId = ++gitStatusRequestIdRef.current;
     const activeSession = latestSessionRef.current;
     if (!activeSession || activeSession.status !== 'running') {
-      if (currentRequestId === gitStatusRequestIdRef.current) {
-        setGitStatus(null);
-      }
       return;
     }
 
@@ -200,11 +197,13 @@ export const TerminalViewport: React.FC<Props> = ({ terminalId, isActive }) => {
 
   useEffect(() => {
     if (!session || session.status !== 'running') {
-      setGitStatus(null);
+      if (session?.status === 'exited' || session?.status === 'error') {
+        setGitStatus(null);
+      }
       return;
     }
     scheduleGitStatusRefresh();
-  }, [scheduleGitStatusRefresh, session?.status, session?.cwd]);
+  }, [scheduleGitStatusRefresh, session?.status]);
 
   const statusLabel = getStatusLabel(session, gitStatus);
 
