@@ -120,9 +120,9 @@ export const TerminalViewport: React.FC<Props> = ({ terminalId, isActive }) => {
 
   return (
     <div className={`w-full h-full relative terminal-viewport-shell ${isScrolling ? 'is-scrolling' : ''}`}>
-      <div ref={containerRef} className="w-full h-full px-3 py-2" />
+      <div ref={containerRef} className="w-full h-full px-2 py-1.5" />
       <div
-        className="absolute right-3 bottom-2 rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider pointer-events-none"
+        className="absolute right-2 bottom-1.5 rounded px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider pointer-events-none"
         style={{
           color: theme.textDim,
           background: 'rgba(0,0,0,0.2)',

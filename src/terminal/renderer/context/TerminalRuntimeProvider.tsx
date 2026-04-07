@@ -15,6 +15,7 @@ type TerminalSessionMap = Record<string, TerminalSessionSnapshot>;
 
 export interface TerminalRuntimeContextValue {
   sessions: TerminalSessionMap;
+  getBufferedOutput: (terminalId: string) => string;
   registerOutputSink: (terminalId: string, sink: TerminalOutputSink) => () => void;
   writeTerminal: (terminalId: string, data: string) => Promise<void>;
   resizeTerminal: (terminalId: string, cols: number, rows: number) => Promise<void>;
@@ -26,6 +27,7 @@ const DEFAULT_COLS = 120;
 const DEFAULT_ROWS = 30;
 const CREATE_RETRY_DELAY_MS = 120;
 const MAX_CREATE_RETRIES = 20;
+const MAX_BUFFERED_OUTPUT = 4000;
 
 const indexByTerminalId = (sessions: TerminalSessionSnapshot[]): TerminalSessionMap => {
   const result: TerminalSessionMap = {};
@@ -83,6 +85,7 @@ export const TerminalRuntimeProvider: React.FC<React.PropsWithChildren> = ({ chi
   const previousIdsRef = useRef<Set<string>>(new Set());
   const outputSinksRef = useRef<Map<string, Set<TerminalOutputSink>>>(new Map());
   const createRetryTimersRef = useRef<Map<string, number>>(new Map());
+  const outputBuffersRef = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     void window.terminalApi
@@ -106,6 +109,12 @@ export const TerminalRuntimeProvider: React.FC<React.PropsWithChildren> = ({ chi
 
   useEffect(() => {
     const detachOutput = window.terminalApi.onTerminalOutput((event) => {
+      const previousBuffer = outputBuffersRef.current.get(event.terminalId) ?? '';
+      outputBuffersRef.current.set(
+        event.terminalId,
+        `${previousBuffer}${event.data}`.slice(-MAX_BUFFERED_OUTPUT),
+      );
+
       const sinks = outputSinksRef.current.get(event.terminalId);
       if (!sinks) {
         return;
@@ -230,6 +239,7 @@ export const TerminalRuntimeProvider: React.FC<React.PropsWithChildren> = ({ chi
 
     for (const terminalId of removedIds) {
       outputSinksRef.current.delete(terminalId);
+      outputBuffersRef.current.delete(terminalId);
       const retryId = createRetryTimersRef.current.get(terminalId);
       if (retryId !== undefined) {
         window.clearTimeout(retryId);
@@ -275,6 +285,10 @@ export const TerminalRuntimeProvider: React.FC<React.PropsWithChildren> = ({ chi
     [],
   );
 
+  const getBufferedOutput = useCallback((terminalId: string): string => {
+    return outputBuffersRef.current.get(terminalId) ?? '';
+  }, []);
+
   const writeTerminal = useCallback(async (terminalId: string, data: string): Promise<void> => {
     await window.terminalApi.writeTerminal({ terminalId, data });
   }, []);
@@ -293,11 +307,12 @@ export const TerminalRuntimeProvider: React.FC<React.PropsWithChildren> = ({ chi
   const value = useMemo<TerminalRuntimeContextValue>(() => {
     return {
       sessions,
+      getBufferedOutput,
       registerOutputSink,
       writeTerminal,
       resizeTerminal,
     };
-  }, [registerOutputSink, resizeTerminal, sessions, writeTerminal]);
+  }, [getBufferedOutput, registerOutputSink, resizeTerminal, sessions, writeTerminal]);
 
   return (
     <TerminalRuntimeContext.Provider value={value}>{children}</TerminalRuntimeContext.Provider>
