@@ -13,6 +13,19 @@ interface Props {
 }
 
 const GIT_STATUS_TRIGGER_DELAY_MS = 250;
+const shouldTriggerGitStatusRefresh = (chunk: string): boolean => {
+  if (chunk.includes('\n') || chunk.includes('\r')) {
+    return true;
+  }
+
+  const trimmedChunk = chunk.trimEnd();
+  return (
+    trimmedChunk.endsWith('>') ||
+    trimmedChunk.endsWith('$') ||
+    trimmedChunk.endsWith('#') ||
+    trimmedChunk.endsWith('%')
+  );
+};
 
 const getStatusLabel = (
   session: TerminalSessionSnapshot | undefined,
@@ -106,7 +119,9 @@ export const TerminalViewport: React.FC<Props> = ({ terminalId, isActive }) => {
 
     const detachOutput = registerOutputSink(terminalId, (chunk) => {
       terminal.write(chunk);
-      scheduleGitStatusRefresh();
+      if (shouldTriggerGitStatusRefresh(chunk)) {
+        scheduleGitStatusRefresh();
+      }
     });
 
     const inputDisposable = terminal.onData((input) => {
@@ -172,14 +187,15 @@ export const TerminalViewport: React.FC<Props> = ({ terminalId, isActive }) => {
   }, [isActive]);
 
   useEffect(() => {
-    if (!xtermRef.current || !session) {
+    if (!session || session.status !== 'running') {
+      bootstrappedRef.current = false;
       return;
     }
-    if (bootstrappedRef.current) {
+    if (!xtermRef.current) {
       return;
     }
 
-    if (session.status === 'running') {
+    if (!bootstrappedRef.current) {
       bootstrappedRef.current = true;
       xtermRef.current.write(`\u001b[2m[${session.shell}] terminal ready\u001b[0m\r\n`);
     }
