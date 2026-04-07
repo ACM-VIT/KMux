@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import * as pty from 'node-pty';
 import type { IPty } from 'node-pty';
+import type { FSWatcher } from 'chokidar';
 import type { TerminalProfile } from '../shared/terminal-profiles';
 import type {
   CreateTerminalRequest,
@@ -13,12 +14,14 @@ import type {
   TerminalErrorEvent,
   TerminalExitEvent,
   TerminalGitStatus,
+  TerminalGitStatusChangedEvent,
   TerminalOutputEvent,
   TerminalSessionSnapshot,
   TerminalStateEvent,
   WriteTerminalRequest,
 } from '../shared/terminal-types';
 import { parseGitStatusOutput } from './git/git-status';
+import { createGitStatusWatcher, resolveGitDirectory } from './git/git-status-watcher';
 import { listTerminalProfiles, resolveShell } from './shell/resolveShell';
 import {
   consumeTerminalInputData,
@@ -32,14 +35,19 @@ const TERMINAL_EVENT_NAMES = {
   exit: 'exit',
   state: 'state',
   error: 'error',
+  gitStatusChanged: 'git-status-changed',
 } as const;
 
 const MIN_DIMENSION = 2;
+const GIT_STATUS_CHANGE_DEBOUNCE_MS = 120;
 
 interface TerminalSessionRecord {
   pty: IPty;
   snapshot: TerminalSessionSnapshot;
   inputBuffer: string;
+  gitDirectory: string | null;
+  gitWatcher: FSWatcher | null;
+  gitStatusChangeTimer: ReturnType<typeof setTimeout> | null;
 }
 
 const normalizeDimension = (value: number): number => {
@@ -108,9 +116,13 @@ export class TerminalManager {
       pty: ptyProcess,
       snapshot,
       inputBuffer: '',
+      gitDirectory: null,
+      gitWatcher: null,
+      gitStatusChangeTimer: null,
     };
 
     this.sessions.set(request.terminalId, sessionRecord);
+    this.refreshGitWatcherForSession(sessionRecord);
 
     ptyProcess.onData((data) => {
       const trackedCwd = extractTrackedCwdFromOutput(data, process.platform);
@@ -119,11 +131,7 @@ export class TerminalManager {
         trackedCwd !== sessionRecord.snapshot.cwd &&
         isExistingDirectory(trackedCwd)
       ) {
-        sessionRecord.snapshot = {
-          ...sessionRecord.snapshot,
-          cwd: trackedCwd,
-        };
-        this.emitState(sessionRecord.snapshot);
+        this.updateSessionCwd(sessionRecord, trackedCwd);
       }
 
       this.events.emit(TERMINAL_EVENT_NAMES.output, {
@@ -134,6 +142,7 @@ export class TerminalManager {
 
     ptyProcess.onExit(({ exitCode, signal }) => {
       const latestSnapshot = sessionRecord.snapshot;
+      this.disposeGitWatcher(sessionRecord);
       this.sessions.delete(request.terminalId);
 
       this.events.emit(TERMINAL_EVENT_NAMES.exit, {
@@ -148,9 +157,11 @@ export class TerminalManager {
         exitCode,
         signal,
       });
+      this.emitGitStatusChanged(request.terminalId);
     });
 
     this.emitState(snapshot);
+    this.emitGitStatusChanged(request.terminalId);
     return { ...snapshot };
   }
 
@@ -171,11 +182,7 @@ export class TerminalManager {
         return;
       }
 
-      session.snapshot = {
-        ...session.snapshot,
-        cwd: nextCwd,
-      };
-      this.emitState(session.snapshot);
+      this.updateSessionCwd(session, nextCwd);
     });
 
     session.pty.write(request.data);
@@ -204,11 +211,13 @@ export class TerminalManager {
     if (!session) {
       return;
     }
+    this.disposeGitWatcher(session);
     session.pty.kill();
   }
 
   public killAll(): void {
     for (const session of this.sessions.values()) {
+      this.disposeGitWatcher(session);
       session.pty.kill();
     }
     this.sessions.clear();
@@ -276,10 +285,82 @@ export class TerminalManager {
     return () => this.events.off(TERMINAL_EVENT_NAMES.error, listener);
   }
 
+  public onGitStatusChanged(listener: (event: TerminalGitStatusChangedEvent) => void): () => void {
+    this.events.on(TERMINAL_EVENT_NAMES.gitStatusChanged, listener);
+    return () => this.events.off(TERMINAL_EVENT_NAMES.gitStatusChanged, listener);
+  }
+
   private emitState(snapshot: TerminalSessionSnapshot): void {
     this.events.emit(TERMINAL_EVENT_NAMES.state, {
       terminalId: snapshot.terminalId,
       snapshot: { ...snapshot },
     } satisfies TerminalStateEvent);
+  }
+
+  private emitGitStatusChanged(terminalId: string): void {
+    this.events.emit(TERMINAL_EVENT_NAMES.gitStatusChanged, {
+      terminalId,
+    } satisfies TerminalGitStatusChangedEvent);
+  }
+
+  private scheduleGitStatusChanged(session: TerminalSessionRecord): void {
+    if (session.gitStatusChangeTimer !== null) {
+      clearTimeout(session.gitStatusChangeTimer);
+    }
+
+    session.gitStatusChangeTimer = setTimeout(() => {
+      session.gitStatusChangeTimer = null;
+      this.emitGitStatusChanged(session.snapshot.terminalId);
+    }, GIT_STATUS_CHANGE_DEBOUNCE_MS);
+  }
+
+  private disposeGitWatcher(session: TerminalSessionRecord): void {
+    if (session.gitStatusChangeTimer !== null) {
+      clearTimeout(session.gitStatusChangeTimer);
+      session.gitStatusChangeTimer = null;
+    }
+
+    if (session.gitWatcher) {
+      void session.gitWatcher.close();
+      session.gitWatcher = null;
+    }
+
+    session.gitDirectory = null;
+  }
+
+  private refreshGitWatcherForSession(session: TerminalSessionRecord): void {
+    const nextGitDirectory = resolveGitDirectory(session.snapshot.cwd);
+    if (!nextGitDirectory) {
+      this.disposeGitWatcher(session);
+      return;
+    }
+
+    if (session.gitWatcher && session.gitDirectory === nextGitDirectory) {
+      return;
+    }
+
+    this.disposeGitWatcher(session);
+    try {
+      session.gitWatcher = createGitStatusWatcher(nextGitDirectory, () => {
+        this.scheduleGitStatusChanged(session);
+      });
+      session.gitDirectory = nextGitDirectory;
+    } catch (error) {
+      this.disposeGitWatcher(session);
+      this.events.emit(TERMINAL_EVENT_NAMES.error, {
+        terminalId: session.snapshot.terminalId,
+        message: `Failed to watch git directory: ${getErrorMessage(error)}`,
+      } satisfies TerminalErrorEvent);
+    }
+  }
+
+  private updateSessionCwd(session: TerminalSessionRecord, nextCwd: string): void {
+    session.snapshot = {
+      ...session.snapshot,
+      cwd: nextCwd,
+    };
+    this.emitState(session.snapshot);
+    this.refreshGitWatcherForSession(session);
+    this.emitGitStatusChanged(session.snapshot.terminalId);
   }
 }
