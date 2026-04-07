@@ -2,19 +2,23 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import * as pty from 'node-pty';
+import { spawn } from 'node:child_process';
 import type { IPty } from 'node-pty';
 import type { TerminalProfile } from '../shared/terminal-profiles';
 import type {
   CreateTerminalRequest,
+  GetTerminalGitStatusRequest,
   KillTerminalRequest,
   ResizeTerminalRequest,
   TerminalErrorEvent,
+  TerminalGitStatus,
   TerminalExitEvent,
   TerminalOutputEvent,
   TerminalSessionSnapshot,
   TerminalStateEvent,
   WriteTerminalRequest,
 } from '../shared/terminal-types';
+import { parseGitStatusOutput } from './git/git-status';
 import { listTerminalProfiles, resolveShell } from './shell/resolveShell';
 import {
   consumeTerminalInputData,
@@ -217,6 +221,30 @@ export class TerminalManager {
     return listTerminalProfiles(process.platform);
   }
 
+  public async getTerminalGitStatus(
+    request: GetTerminalGitStatusRequest,
+  ): Promise<TerminalGitStatus> {
+    const session = this.sessions.get(request.terminalId);
+    if (!session) {
+      return {
+        terminalId: request.terminalId,
+        branchName: null,
+        isDirty: false,
+      };
+    }
+
+    try {
+      const output = await this.runGitStatus(session.snapshot.cwd);
+      return parseGitStatusOutput(output, request.terminalId);
+    } catch {
+      return {
+        terminalId: request.terminalId,
+        branchName: null,
+        isDirty: false,
+      };
+    }
+  }
+
   public onOutput(listener: (event: TerminalOutputEvent) => void): () => void {
     this.events.on(TERMINAL_EVENT_NAMES.output, listener);
     return () => this.events.off(TERMINAL_EVENT_NAMES.output, listener);
@@ -242,5 +270,36 @@ export class TerminalManager {
       terminalId: snapshot.terminalId,
       snapshot: { ...snapshot },
     } satisfies TerminalStateEvent);
+  }
+
+  private runGitStatus(cwd: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const child = spawn('git', ['status', '--porcelain=2', '--branch'], {
+        cwd,
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      child.stdout?.setEncoding('utf8');
+      child.stderr?.setEncoding('utf8');
+      child.stdout?.on('data', (chunk: string) => {
+        stdout += chunk;
+      });
+      child.stderr?.on('data', (chunk: string) => {
+        stderr += chunk;
+      });
+
+      child.on('error', reject);
+      child.on('close', (exitCode) => {
+        if (exitCode === 0) {
+          resolve(stdout);
+          return;
+        }
+        reject(new Error(stderr.trim() || stdout.trim() || 'git status failed'));
+      });
+    });
   }
 }

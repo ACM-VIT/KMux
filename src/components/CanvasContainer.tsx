@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { RepoSidebar } from '../repo/renderer/components/RepoSidebar';
+import { GitBottomDock } from '../repo/renderer/components/GitBottomDock';
+import { ChangesSidebar } from '../repo/renderer/components/ChangesSidebar';
+import { useRepoDockState } from '../repo/renderer/hooks/useRepoDockState';
 import { useCanvasStore } from '../store/useCanvasStore';
 import { WorkspaceRow } from './WorkspaceRow';
 import { FuzzyFinder } from './FuzzyFinder';
@@ -7,8 +9,11 @@ import { FuzzyFinder } from './FuzzyFinder';
 export const CanvasContainer: React.FC = () => {
   const { workspaces, activeWorkspaceIndex, isOverview, theme } = useCanvasStore();
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [isRepoOpen, setIsRepoOpen] = useState(true);
-  const repoDockWidth = isRepoOpen ? 340 : 68;
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isBottomDockOpen, setIsBottomDockOpen] = useState(true);
+  const repoDockState = useRepoDockState();
+  const sidebarWidth = isSidebarOpen ? 320 : 58;
+  const bottomDockHeight = isBottomDockOpen ? 132 : 42;
 
   useEffect(() => {
     let id: number;
@@ -33,10 +38,10 @@ export const CanvasContainer: React.FC = () => {
   return (
     <div className="w-screen h-screen overflow-hidden relative" style={{ background: theme.bg }}>
       <div
-        className="relative h-full overflow-hidden transition-[width,transform] duration-300 ease-out"
+        className="relative overflow-hidden transition-[width,height,transform] duration-300 ease-out"
         style={{
-          width: `calc(100% - ${repoDockWidth}px)`,
-          transform: isRepoOpen ? 'translateX(0)' : 'translateX(0)',
+          width: `calc(100% - ${sidebarWidth}px)`,
+          height: `calc(100% - ${bottomDockHeight}px)`,
         }}
       >
         <div
@@ -133,10 +138,31 @@ export const CanvasContainer: React.FC = () => {
         </div>
       </div>
 
-      <div className="absolute right-0 top-0 z-[90] h-full">
-        <RepoSidebar
-          isOpen={isRepoOpen}
-          onToggle={() => setIsRepoOpen((current) => !current)}
+      <div
+        className="absolute right-0 top-0 z-[90] transition-[width] duration-300 ease-out"
+        style={{
+          width: `${sidebarWidth}px`,
+          height: '100%',
+        }}
+      >
+        <ChangesSidebar
+          isOpen={isSidebarOpen}
+          onToggle={() => setIsSidebarOpen((current) => !current)}
+          state={repoDockState}
+        />
+      </div>
+
+      <div
+        className="absolute bottom-0 left-0 z-[95] transition-[width,height] duration-300 ease-out"
+        style={{
+          width: `calc(100% - ${sidebarWidth}px)`,
+          height: `${bottomDockHeight}px`,
+        }}
+      >
+        <GitBottomDock
+          isOpen={isBottomDockOpen}
+          onToggle={() => setIsBottomDockOpen((current) => !current)}
+          state={repoDockState}
         />
       </div>
     </div>

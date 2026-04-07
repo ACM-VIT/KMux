@@ -341,7 +341,7 @@ export class RepoManager {
       stderr: message,
       success: false,
       exitCode: 1,
-      };
+    };
   }
 
   private runGit(repoRoot: string, args: string[], throwOnError = true): Promise<GitCommandResult> {
