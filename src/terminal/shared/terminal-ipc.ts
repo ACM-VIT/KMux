@@ -41,6 +41,7 @@ export const TERMINAL_IPC_CHANNELS = {
   list: 'terminal:list',
   listProfiles: 'terminal:list-profiles',
   gitStatus: 'terminal:git-status',
+  gitStatusChanged: 'terminal:git-status-changed',
   output: 'terminal:output',
   exit: 'terminal:exit',
   state: 'terminal:state',

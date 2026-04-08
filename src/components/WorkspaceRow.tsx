@@ -68,7 +68,7 @@ export const WorkspaceRow: React.FC<Props> = ({ workspace, isActiveWorkspace }) 
 
   return (
     <div
-      className={`w-screen h-screen flex-shrink-0 flex items-center transition-opacity duration-500 ${
+      className={`w-full h-full flex-shrink-0 flex items-center transition-opacity duration-500 ${
         isActiveWorkspace ? 'opacity-100' : 'opacity-40'
       }`}
     >

@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { GitBottomDock } from '../repo/renderer/components/GitBottomDock';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ChangesSidebar } from '../repo/renderer/components/ChangesSidebar';
 import { useRepoDockState } from '../repo/renderer/hooks/useRepoDockState';
 import { useCanvasStore } from '../store/useCanvasStore';
+import { useTerminalRuntime } from '../terminal/renderer/context/useTerminalRuntime';
 import { WorkspaceRow } from './WorkspaceRow';
 import { FuzzyFinder } from './FuzzyFinder';
 import {
@@ -10,37 +10,42 @@ import {
   SCREEN_HEIGHT_VH,
   TRANSITION_CANVAS,
   TRANSITION_UI,
-  UI_HIDE_TIMEOUT,
-  Z_LAYERS,
 } from '../lib/constants';
+
+const ACTIVITY_BAR_WIDTH_PX = 48;
+const SIDEBAR_PANEL_WIDTH_PX = 240;
+const STATUS_BAR_HEIGHT_PX = 24;
 
 export const CanvasContainer: React.FC = () => {
   const { workspaces, activeWorkspaceIndex, isOverview, theme } = useCanvasStore();
-  const [controlsVisible, setControlsVisible] = useState(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isBottomDockOpen, setIsBottomDockOpen] = useState(true);
+  const { sessions } = useTerminalRuntime();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const repoDockState = useRepoDockState();
-  const sidebarWidth = isSidebarOpen ? 320 : 58;
-  const bottomDockHeight = isBottomDockOpen ? 132 : 42;
+  const hasGitRepo = repoDockState.snapshot?.isRepo === true;
+  const leftDockWidth = ACTIVITY_BAR_WIDTH_PX + (hasGitRepo && isSidebarOpen ? SIDEBAR_PANEL_WIDTH_PX : 0);
   const translateY = -(activeWorkspaceIndex * SCREEN_HEIGHT_VH);
 
   useEffect(() => {
-    let id: number;
-    if (controlsVisible) {
-      id = window.setTimeout(() => setControlsVisible(false), UI_HIDE_TIMEOUT);
+    if (!hasGitRepo && isSidebarOpen) {
+      setIsSidebarOpen(false);
     }
-    return () => clearTimeout(id);
-  }, [controlsVisible]);
+  }, [hasGitRepo, isSidebarOpen]);
 
-  useEffect(() => {
-    const poke = () => setControlsVisible(true);
-    window.addEventListener('keydown', poke, true);
-    window.addEventListener('mousemove', poke, true);
-    return () => {
-      window.removeEventListener('keydown', poke, true);
-      window.removeEventListener('mousemove', poke, true);
-    };
-  }, []);
+  const activeWorkspace = workspaces[activeWorkspaceIndex];
+  const activeTerminal = activeWorkspace
+    ? activeWorkspace.terminals[activeWorkspace.activeTerminalIndex]
+    : undefined;
+  const activeSession = activeTerminal ? sessions[activeTerminal.id] : undefined;
+  const profileLabel = activeSession?.shell ?? activeTerminal?.profileId ?? 'local';
+  const isRemoteProfile = /ssh|remote|wsl|container/i.test(profileLabel);
+
+  const totalChanges = useMemo(() => {
+    if (!repoDockState.snapshot?.isRepo) {
+      return 0;
+    }
+    const status = repoDockState.snapshot.status;
+    return status.modified + status.added + status.deleted + status.untracked + status.conflicts;
+  }, [repoDockState.snapshot]);
 
   return (
     <div
@@ -51,10 +56,10 @@ export const CanvasContainer: React.FC = () => {
       }}
     >
       <div
-        className="relative overflow-hidden transition-[width,height,transform] duration-300 ease-out"
+        className="absolute top-0 right-0 overflow-hidden transition-[width,height,transform] duration-150 ease-out"
         style={{
-          width: `calc(100% - ${sidebarWidth}px)`,
-          height: `calc(100% - ${bottomDockHeight}px)`,
+          width: `calc(100% - ${leftDockWidth}px)`,
+          height: `calc(100% - ${STATUS_BAR_HEIGHT_PX}px)`,
         }}
       >
         <div
@@ -86,108 +91,66 @@ export const CanvasContainer: React.FC = () => {
       <FuzzyFinder />
 
       <div
-        className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-2"
-        style={{ zIndex: Z_LAYERS.INDICATORS }}
-      >
-        {workspaces.map((_, index) => (
-          <div
-            key={index}
-            className="flex items-center justify-center rounded-lg transition-all duration-700 text-[9px] font-mono font-bold"
-            style={{
-              width: activeWorkspaceIndex === index ? '28px' : '20px',
-              height: activeWorkspaceIndex === index ? '28px' : '20px',
-              background: activeWorkspaceIndex === index ? `${theme.accent}15` : 'rgba(255,255,255,0.02)',
-              border: `1px solid ${activeWorkspaceIndex === index ? `${theme.accent}88` : theme.border}`,
-              color: activeWorkspaceIndex === index ? theme.accent : theme.textDim,
-              opacity: activeWorkspaceIndex === index ? 1 : 0.4,
-              boxShadow: activeWorkspaceIndex === index ? `0 4px 12px ${theme.accent}22` : 'none',
-              transform: activeWorkspaceIndex === index ? 'scale(1.1)' : 'scale(1)',
-              marginLeft: activeWorkspaceIndex === index ? '-4px' : '0',
-            }}
-          >
-            {index + 1}
-          </div>
-        ))}
-      </div>
-
-      <div
-        className="absolute top-5 right-5 transition-opacity"
+        className="absolute left-0 top-0 h-full transition-[width] duration-150 ease-out"
         style={{
-          zIndex: Z_LAYERS.CONTROLS,
-          transition: `opacity ${TRANSITION_UI}`,
-          opacity: controlsVisible ? 1 : 0,
-          pointerEvents: controlsVisible ? 'auto' : 'none',
-        }}
-      >
-        <div
-          className="px-6 py-5 rounded-2xl border backdrop-blur-3xl shadow-3xl text-[10px] tracking-[0.18em] uppercase flex flex-col gap-3"
-          style={{
-            background: theme.panelBg,
-            borderColor: theme.border,
-            color: theme.textDim,
-          }}
-        >
-          <div className="border-b pb-2 mb-1 flex justify-between" style={{ borderColor: theme.border }}>
-            <span style={{ color: theme.accent, fontWeight: 700 }}>KMux Controls</span>
-            <span>Theme: {theme.name}</span>
-          </div>
-          <div className="opacity-40 italic mb-1 text-[9px]">modifiers: alt or super</div>
-          <p>arrows - focus terminal / workspace</p>
-          <p>enter - new terminal</p>
-          <p>n - new workspace</p>
-          <p>shift + alt + enter - choose terminal profile</p>
-          <p>shift + alt + n - choose workspace profile</p>
-          <p>q/w - close terminal</p>
-          <p>o - toggle overview</p>
-          <p>f - fuzzy finder</p>
-          <p>-/= - resize width</p>
-        </div>
-      </div>
-
-      <div
-        className="absolute bottom-5 left-1/2 -translate-x-1/2 transition-opacity"
-        style={{
-          zIndex: Z_LAYERS.CONTROLS,
-          transition: `opacity ${TRANSITION_UI}`,
-          opacity: controlsVisible ? 0.6 : 0,
-        }}
-      >
-        <span
-          className="text-[10px] tracking-[0.5em] font-light uppercase"
-          style={{ color: theme.text, fontFamily: 'JetBrains Mono, monospace' }}
-        >
-          {`WORKSPACE ${activeWorkspaceIndex + 1}`}
-        </span>
-      </div>
-
-      <div
-        className="absolute right-0 top-0 transition-[width] duration-300 ease-out"
-        style={{
-          zIndex: Z_LAYERS.CONTROLS + 30,
-          width: `${sidebarWidth}px`,
-          height: '100%',
+          width: `${leftDockWidth}px`,
+          height: `calc(100% - ${STATUS_BAR_HEIGHT_PX}px)`,
+          borderRight: `1px solid ${theme.border}`,
         }}
       >
         <ChangesSidebar
-          isOpen={isSidebarOpen}
-          onToggle={() => setIsSidebarOpen((current) => !current)}
+          isOpen={hasGitRepo && isSidebarOpen}
+          onToggle={() => {
+            if (!hasGitRepo) {
+              return;
+            }
+            setIsSidebarOpen((current) => !current);
+          }}
           state={repoDockState}
         />
       </div>
 
       <div
-        className="absolute bottom-0 left-0 transition-[width,height] duration-300 ease-out"
+        className="absolute left-0 bottom-0 flex h-6 w-full items-center justify-between border-t px-3"
         style={{
-          zIndex: Z_LAYERS.CONTROLS + 20,
-          width: `calc(100% - ${sidebarWidth}px)`,
-          height: `${bottomDockHeight}px`,
+          background: theme.panelBg,
+          borderColor: theme.border,
+          color: theme.textDim,
         }}
       >
-        <GitBottomDock
-          isOpen={isBottomDockOpen}
-          onToggle={() => setIsBottomDockOpen((current) => !current)}
-          state={repoDockState}
-        />
+        <div
+          className="flex min-w-0 items-center gap-3 text-[11px]"
+          style={{ fontFamily: 'JetBrains Mono, monospace' }}
+        >
+          <span style={{ color: theme.accent, fontFamily: 'JetBrains Mono, monospace' }}>
+            {repoDockState.snapshot?.branch ?? 'no-repo'}
+          </span>
+          <span className="truncate">
+            {repoDockState.activeCwd ?? 'No active directory'}
+          </span>
+          {totalChanges > 0 ? (
+            <span style={{ color: theme.accent }}>{totalChanges} changed</span>
+          ) : null}
+        </div>
+        <div
+          className="flex items-center gap-3 text-[11px]"
+          style={{ fontFamily: 'JetBrains Mono, monospace' }}
+        >
+          <span>WS {activeWorkspaceIndex + 1}</span>
+          <button
+            type="button"
+            className="border px-2 leading-5"
+            style={{
+              borderColor: theme.border,
+              color: isRemoteProfile ? theme.accent : theme.text,
+              borderRadius: '2px',
+              fontFamily: 'JetBrains Mono, monospace',
+            }}
+            title="Active terminal profile"
+          >
+            {profileLabel}
+          </button>
+        </div>
       </div>
     </div>
   );

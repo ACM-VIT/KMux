@@ -10,6 +10,7 @@ import {
 import type {
   TerminalErrorEvent,
   TerminalExitEvent,
+  TerminalGitStatusChangedEvent,
   TerminalOutputEvent,
   TerminalStateEvent,
 } from '../shared/terminal-types';
@@ -84,6 +85,11 @@ export const registerTerminalIpc = ({
   const detachError = terminalManager.onError((event: TerminalErrorEvent) => {
     broadcastToWindows(getWindows(), TERMINAL_IPC_CHANNELS.error, event);
   });
+  const detachGitStatusChanged = terminalManager.onGitStatusChanged(
+    (event: TerminalGitStatusChangedEvent) => {
+      broadcastToWindows(getWindows(), TERMINAL_IPC_CHANNELS.gitStatusChanged, event);
+    },
+  );
 
   return () => {
     ipcMain.removeHandler(TERMINAL_IPC_CHANNELS.create);
@@ -98,5 +104,6 @@ export const registerTerminalIpc = ({
     detachExit();
     detachState();
     detachError();
+    detachGitStatusChanged();
   };
 };
