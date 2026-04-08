@@ -71,6 +71,10 @@ export interface TerminalGitStatus {
   isDirty: boolean;
 }
 
+export interface TerminalGitStatusChangedEvent {
+  terminalId: string;
+}
+
 export interface TerminalApi {
   createTerminal: (request: CreateTerminalRequest) => Promise<TerminalSessionSnapshot>;
   writeTerminal: (request: WriteTerminalRequest) => Promise<void>;
@@ -79,6 +83,7 @@ export interface TerminalApi {
   listTerminals: () => Promise<TerminalSessionSnapshot[]>;
   listTerminalProfiles: () => Promise<TerminalProfile[]>;
   getTerminalGitStatus: (request: GetTerminalGitStatusRequest) => Promise<TerminalGitStatus>;
+  onGitStatusChanged: (listener: (event: TerminalGitStatusChangedEvent) => void) => () => void;
   onTerminalOutput: (listener: (event: TerminalOutputEvent) => void) => () => void;
   onTerminalExit: (listener: (event: TerminalExitEvent) => void) => () => void;
   onTerminalState: (listener: (event: TerminalStateEvent) => void) => () => void;

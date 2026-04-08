@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Terminal as XtermTerminal } from '@xterm/xterm';
 import { useCanvasStore } from '../../../store/useCanvasStore';
 import type { TerminalGitStatus, TerminalSessionSnapshot } from '../../shared/terminal-types';
@@ -12,7 +12,8 @@ interface Props {
   isActive: boolean;
 }
 
-const GIT_STATUS_POLL_INTERVAL_MS = 2000;
+const GIT_STATUS_TRIGGER_DELAY_MS = 250;
+const GIT_STATUS_FALLBACK_INTERVAL_MS = 20000;
 
 const getStatusLabel = (
   session: TerminalSessionSnapshot | undefined,
@@ -37,10 +38,69 @@ export const TerminalViewport: React.FC<Props> = ({ terminalId, isActive }) => {
   const xtermRef = useRef<XtermTerminal | null>(null);
   const bootstrappedRef = useRef(false);
   const hideScrollbarTimerRef = useRef<number | null>(null);
+  const gitStatusRefreshTimerRef = useRef<number | null>(null);
+  const gitStatusRequestIdRef = useRef(0);
   const [isScrolling, setIsScrolling] = useState(false);
   const [gitStatus, setGitStatus] = useState<TerminalGitStatus | null>(null);
 
   const session = sessions[terminalId];
+  const latestSessionRef = useRef<TerminalSessionSnapshot | undefined>(session);
+
+  useEffect(() => {
+    latestSessionRef.current = session;
+  }, [session]);
+
+  useEffect(() => {
+    return () => {
+      if (gitStatusRefreshTimerRef.current !== null) {
+        window.clearTimeout(gitStatusRefreshTimerRef.current);
+        gitStatusRefreshTimerRef.current = null;
+      }
+      gitStatusRequestIdRef.current += 1;
+    };
+  }, []);
+
+  const refreshGitStatus = useCallback(async (): Promise<void> => {
+    const currentRequestId = ++gitStatusRequestIdRef.current;
+    const activeSession = latestSessionRef.current;
+    if (!activeSession || activeSession.status !== 'running') {
+      setGitStatus(null);
+      return;
+    }
+
+    try {
+      const status = await window.terminalApi.getTerminalGitStatus({ terminalId });
+      if (currentRequestId === gitStatusRequestIdRef.current) {
+        setGitStatus(status);
+      }
+    } catch (error) {
+      if (currentRequestId === gitStatusRequestIdRef.current) {
+        setGitStatus(null);
+      }
+      console.error(`Failed to read git status for terminal "${terminalId}".`, error);
+    }
+  }, [terminalId]);
+
+  const scheduleGitStatusRefresh = useCallback((): void => {
+    if (gitStatusRefreshTimerRef.current !== null) {
+      window.clearTimeout(gitStatusRefreshTimerRef.current);
+    }
+
+    gitStatusRefreshTimerRef.current = window.setTimeout(() => {
+      gitStatusRefreshTimerRef.current = null;
+      void refreshGitStatus();
+    }, GIT_STATUS_TRIGGER_DELAY_MS);
+  }, [refreshGitStatus]);
+
+  useEffect(() => {
+    if (isActive) {
+      return;
+    }
+    if (gitStatusRefreshTimerRef.current !== null) {
+      window.clearTimeout(gitStatusRefreshTimerRef.current);
+      gitStatusRefreshTimerRef.current = null;
+    }
+  }, [isActive]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -130,53 +190,39 @@ export const TerminalViewport: React.FC<Props> = ({ terminalId, isActive }) => {
   }, [session]);
 
   useEffect(() => {
-    if (!session || session.status !== 'running') {
-      setGitStatus(null);
-      return;
-    }
-
     if (!isActive) {
       return;
     }
 
-    let isDisposed = false;
-    let isInFlight = false;
-    let timeoutId: number | null = null;
-
-    const pollGitStatus = async (): Promise<void> => {
-      if (isDisposed || isInFlight) {
+    const detachGitStatusChanged = window.terminalApi.onGitStatusChanged((event) => {
+      if (event.terminalId !== terminalId) {
         return;
       }
-
-      isInFlight = true;
-      try {
-        const nextStatus = await window.terminalApi.getTerminalGitStatus({ terminalId });
-        if (!isDisposed) {
-          setGitStatus(nextStatus);
-        }
-      } catch {
-        if (!isDisposed) {
-          setGitStatus(null);
-        }
-      } finally {
-        isInFlight = false;
-        if (!isDisposed) {
-          timeoutId = window.setTimeout(() => {
-            void pollGitStatus();
-          }, GIT_STATUS_POLL_INTERVAL_MS);
-        }
-      }
-    };
-
-    void pollGitStatus();
+      scheduleGitStatusRefresh();
+    });
 
     return () => {
-      isDisposed = true;
-      if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
-      }
+      detachGitStatusChanged();
     };
-  }, [isActive, session?.cwd, session?.status, terminalId]);
+  }, [isActive, scheduleGitStatusRefresh, terminalId]);
+
+  useEffect(() => {
+    if (!session || session.status !== 'running' || !isActive) {
+      if (session?.status === 'exited' || session?.status === 'error') {
+        setGitStatus(null);
+      }
+      return;
+    }
+
+    scheduleGitStatusRefresh();
+    const fallbackIntervalId = window.setInterval(() => {
+      scheduleGitStatusRefresh();
+    }, GIT_STATUS_FALLBACK_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(fallbackIntervalId);
+    };
+  }, [isActive, scheduleGitStatusRefresh, session?.cwd, session?.status]);
 
   const statusLabel = getStatusLabel(session, gitStatus);
 
