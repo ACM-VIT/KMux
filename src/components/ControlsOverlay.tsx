@@ -191,7 +191,7 @@ export const ControlsOverlay: React.FC = () => {
 
         <div className="max-h-[62vh] overflow-y-auto px-4 py-3">
           <div className="mb-3 rounded border px-3 py-2 text-[10px]" style={{ borderColor: theme.border, color: theme.textDim }}>
-            Workspace jump remains fixed to Alt/Cmd + 1..0. Other shortcuts are editable.
+            Workspace jump remains fixed to Alt/Cmd + 1..0. Dock toggle is fixed to Alt/Cmd + D.
           </div>
 
           {duplicateBindingsMessage ? (

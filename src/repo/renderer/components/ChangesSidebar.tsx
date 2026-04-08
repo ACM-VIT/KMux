@@ -108,15 +108,18 @@ const ActivityButton: React.FC<{
 }> = ({ icon, title, isActive, onClick, badgeCount, disabled = false }) => (
   <button
     type="button"
-    className="relative flex h-10 w-10 items-center justify-center border-l-2 transition-colors"
+    className="relative flex h-9 w-9 items-center justify-center rounded-xl border transition-all duration-200"
     style={{
-      borderLeftColor: isActive ? 'var(--color-primary)' : 'transparent',
+      borderColor: isActive ? 'var(--color-primary)' : 'var(--color-border)',
+      background: isActive ? 'color-mix(in srgb, var(--color-primary) 16%, transparent)' : 'rgba(255,255,255,0.015)',
       color: disabled
         ? 'var(--color-text-dim)'
         : isActive
           ? 'var(--color-text)'
           : 'var(--color-text-muted)',
       opacity: disabled ? 0.45 : 1,
+      boxShadow: isActive ? '0 4px 14px color-mix(in srgb, var(--color-primary) 28%, transparent)' : 'none',
+      transform: isActive ? 'translateX(1px)' : 'translateX(0)',
     }}
     title={title}
     aria-label={title}
@@ -379,13 +382,17 @@ export const ChangesSidebar: React.FC<ChangesSidebarProps> = ({ isOpen, onToggle
       style={{
         ...colorVars,
         width: `${48 + panelWidth}px`,
-        background: 'var(--color-bg-surface)',
+        background: 'transparent',
       }}
     >
-      <div className="flex h-full">
+      <div className="flex h-full px-1 py-2">
         <div
-          className="flex h-full w-12 flex-col items-center gap-1 border-r pt-2"
-          style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg-base)' }}
+          className="flex h-full w-12 flex-col items-center gap-2 rounded-2xl border py-3"
+          style={{
+            borderColor: 'var(--color-border)',
+            background: 'linear-gradient(180deg, var(--color-bg-base), color-mix(in srgb, var(--color-bg-base) 78%, black 22%))',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
+          }}
         >
           <ActivityButton
             icon="files"
@@ -469,7 +476,14 @@ export const ChangesSidebar: React.FC<ChangesSidebarProps> = ({ isOpen, onToggle
         </div>
 
         {panelWidth > 0 ? (
-          <div className="flex h-full w-[240px] flex-col border-r" style={{ borderColor: 'var(--color-border)' }}>
+          <div
+            className="flex h-full w-[240px] flex-col rounded-r-2xl border border-l-0"
+            style={{
+              borderColor: 'var(--color-border)',
+              background: 'linear-gradient(180deg, color-mix(in srgb, var(--color-bg-surface) 90%, black 10%), var(--color-bg-surface))',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+            }}
+          >
             {activeView === 'git' ? (
               <>
                 <div className="border-b px-3 py-2" style={{ borderColor: 'var(--color-border)' }}>

@@ -2,10 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root {
-  --font-ui: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  --font-ui: 'Space Grotesk', 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', monospace;
 
   --color-bg-base: #0d1017;
@@ -17,9 +17,9 @@
   --color-text-muted: #8b949e;
   --color-text-dim: #6e7681;
 
-  --color-primary: #58a6ff;
+  --color-primary: #f6ad49;
   --color-git-add: #3fb950;
-  --color-git-mod: #d2a8ff;
+  --color-git-mod: #f6ad49;
   --color-git-del: #f85149;
 }
 

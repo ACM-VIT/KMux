@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChangesSidebar } from '../repo/renderer/components/ChangesSidebar';
 import { useRepoDockState } from '../repo/renderer/hooks/useRepoDockState';
 import { useCanvasStore } from '../store/useCanvasStore';
@@ -20,16 +20,79 @@ export const CanvasContainer: React.FC = () => {
   const { workspaces, activeWorkspaceIndex, isOverview, theme } = useCanvasStore();
   const { sessions } = useTerminalRuntime();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isDockHovering, setIsDockHovering] = useState(false);
+  const [isDockShortcutVisible, setIsDockShortcutVisible] = useState(false);
+  const dockShortcutTimerRef = useRef<number | null>(null);
   const repoDockState = useRepoDockState();
   const hasGitRepo = repoDockState.snapshot?.isRepo === true;
-  const leftDockWidth = ACTIVITY_BAR_WIDTH_PX + (hasGitRepo && isSidebarOpen ? SIDEBAR_PANEL_WIDTH_PX : 0);
+  const isDockVisible = hasGitRepo && (isDockHovering || isDockShortcutVisible);
+  const leftDockWidth = isDockVisible
+    ? ACTIVITY_BAR_WIDTH_PX + (isSidebarOpen ? SIDEBAR_PANEL_WIDTH_PX : 0)
+    : 0;
+  const workspaceIndicatorLeft = Math.max(12, leftDockWidth + 8);
   const translateY = -(activeWorkspaceIndex * SCREEN_HEIGHT_VH);
 
-  useEffect(() => {
-    if (!hasGitRepo && isSidebarOpen) {
-      setIsSidebarOpen(false);
+  const clearDockShortcutTimer = (): void => {
+    if (dockShortcutTimerRef.current !== null) {
+      window.clearTimeout(dockShortcutTimerRef.current);
+      dockShortcutTimerRef.current = null;
     }
-  }, [hasGitRepo, isSidebarOpen]);
+  };
+
+  const revealDockFromShortcut = (): void => {
+    clearDockShortcutTimer();
+    setIsDockShortcutVisible(true);
+    dockShortcutTimerRef.current = window.setTimeout(() => {
+      setIsDockShortcutVisible(false);
+      dockShortcutTimerRef.current = null;
+    }, 1800);
+  };
+
+  useEffect(() => {
+    if (!hasGitRepo) {
+      setIsSidebarOpen(false);
+      setIsDockHovering(false);
+      setIsDockShortcutVisible(false);
+      clearDockShortcutTimer();
+    }
+  }, [hasGitRepo]);
+
+  useEffect(() => {
+    return () => {
+      clearDockShortcutTimer();
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleDockShortcut = (event: KeyboardEvent): void => {
+      if (!hasGitRepo) {
+        return;
+      }
+      if (!(event.metaKey || event.altKey) || event.key.toLowerCase() !== 'd' || event.repeat) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      revealDockFromShortcut();
+      setIsSidebarOpen((current) => !current);
+    };
+
+    window.addEventListener('keydown', handleDockShortcut, true);
+    return () => {
+      window.removeEventListener('keydown', handleDockShortcut, true);
+    };
+  }, [hasGitRepo]);
 
   const activeWorkspace = workspaces[activeWorkspaceIndex];
   const activeTerminal = activeWorkspace
@@ -55,6 +118,28 @@ export const CanvasContainer: React.FC = () => {
         transition: `background ${TRANSITION_UI}`,
       }}
     >
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: `
+            radial-gradient(70% 45% at 18% 42%, ${theme.accent}10 0%, transparent 68%),
+            radial-gradient(55% 42% at 78% 16%, rgba(255,255,255,0.035) 0%, transparent 72%),
+            linear-gradient(180deg, rgba(255,255,255,0.015), transparent 22%)
+          `,
+        }}
+      />
+
+      {hasGitRepo && !isDockVisible ? (
+        <div
+          className="absolute left-0 top-0 z-40"
+          style={{
+            width: '16px',
+            height: `calc(100% - ${STATUS_BAR_HEIGHT_PX}px)`,
+          }}
+          onMouseEnter={() => setIsDockHovering(true)}
+        />
+      ) : null}
+
       <div
         className="absolute top-0 right-0 overflow-hidden transition-[width,height,transform] duration-150 ease-out"
         style={{
@@ -92,11 +177,23 @@ export const CanvasContainer: React.FC = () => {
       <FuzzyFinder />
 
       <div
-        className="absolute left-0 top-0 h-full transition-[width] duration-150 ease-out"
+        className="absolute left-0 top-0 h-full overflow-hidden transition-[width] duration-150 ease-out"
         style={{
           width: `${leftDockWidth}px`,
           height: `calc(100% - ${STATUS_BAR_HEIGHT_PX}px)`,
-          borderRight: `1px solid ${theme.border}`,
+          borderRight: isDockVisible ? `1px solid ${theme.border}` : 'none',
+          background: `linear-gradient(180deg, ${theme.panelBg}, rgba(0,0,0,0.18))`,
+          boxShadow: `10px 0 28px rgba(0,0,0,0.35)`,
+          zIndex: 35,
+          pointerEvents: isDockVisible ? 'auto' : 'none',
+        }}
+        onMouseEnter={() => {
+          clearDockShortcutTimer();
+          setIsDockShortcutVisible(false);
+          setIsDockHovering(true);
+        }}
+        onMouseLeave={() => {
+          setIsDockHovering(false);
         }}
       >
         <ChangesSidebar
@@ -112,23 +209,45 @@ export const CanvasContainer: React.FC = () => {
       </div>
 
       <div
-        className="pointer-events-none absolute top-1/2 -translate-y-1/2 flex flex-col gap-2 z-40"
-        style={{ left: `${Math.max(8, leftDockWidth - 18)}px` }}
+        className="pointer-events-none absolute top-0 z-30 w-7 transition-[left] duration-150 ease-out"
+        style={{
+          left: `${Math.max(10, leftDockWidth - 3)}px`,
+          height: `calc(100% - ${STATUS_BAR_HEIGHT_PX}px)`,
+          background: `linear-gradient(90deg, ${theme.accent}44 0%, ${theme.accent}16 34%, transparent 100%)`,
+          filter: 'blur(12px)',
+          opacity: isDockVisible ? 0.9 : 0,
+        }}
+      />
+
+      <div
+        className="pointer-events-none absolute top-1/2 -translate-y-1/2 flex flex-col gap-2 z-40 transition-[left] duration-150 ease-out"
+        style={{ left: `${workspaceIndicatorLeft}px` }}
       >
         {workspaces.map((_, index) => (
           <div
             key={index}
             className="flex items-center justify-center rounded-lg transition-all duration-700 text-[9px] font-mono font-bold"
             style={{
-              width: activeWorkspaceIndex === index ? '28px' : '20px',
-              height: activeWorkspaceIndex === index ? '28px' : '20px',
-              background: activeWorkspaceIndex === index ? `${theme.accent}15` : 'rgba(255,255,255,0.02)',
-              border: `1px solid ${activeWorkspaceIndex === index ? `${theme.accent}88` : theme.border}`,
+              width: activeWorkspaceIndex === index ? '30px' : '19px',
+              height: activeWorkspaceIndex === index ? '30px' : '19px',
+              borderRadius: activeWorkspaceIndex === index ? '10px' : '8px',
+              background:
+                activeWorkspaceIndex === index
+                  ? `linear-gradient(145deg, ${theme.accent}3a, ${theme.accent}14)`
+                  : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${activeWorkspaceIndex === index ? `${theme.accent}a6` : theme.border}`,
               color: activeWorkspaceIndex === index ? theme.accent : theme.textDim,
-              opacity: activeWorkspaceIndex === index ? 1 : 0.4,
-              boxShadow: activeWorkspaceIndex === index ? `0 4px 12px ${theme.accent}22` : 'none',
-              transform: activeWorkspaceIndex === index ? 'scale(1.1)' : 'scale(1)',
-              marginLeft: activeWorkspaceIndex === index ? '-4px' : '0',
+              opacity: activeWorkspaceIndex === index ? 1 : Math.max(0.38, 0.66 - Math.abs(activeWorkspaceIndex - index) * 0.1),
+              boxShadow:
+                activeWorkspaceIndex === index
+                  ? `0 0 0 1px ${theme.accent}30, 0 8px 22px ${theme.accent}45`
+                  : 'none',
+              transform:
+                activeWorkspaceIndex === index
+                  ? 'translateX(3px) scale(1.08)'
+                  : `translateX(${-Math.min(Math.abs(activeWorkspaceIndex - index) * 2, 8)}px) scale(${Math.max(0.92, 1 - Math.abs(activeWorkspaceIndex - index) * 0.04)})`,
+              fontFamily: 'var(--font-ui)',
+              letterSpacing: '0.02em',
             }}
           >
             {index + 1}
