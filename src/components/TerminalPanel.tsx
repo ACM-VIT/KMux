@@ -15,7 +15,7 @@ interface Props {
 export const TerminalPanel: React.FC<Props> = ({ terminal, terminalIndex, isActive }) => {
   const { theme, isOverview, isTerminalFullscreen, jumpToGlobalTerminal } = useCanvasStore();
   const { sessions } = useTerminalRuntime();
-  const w = isTerminalFullscreen && isActive ? '96vw' : getWidthVWString(terminal.widthFraction);
+  const w = isTerminalFullscreen && isActive ? 'calc(100% - 16px)' : getWidthVWString(terminal.widthFraction);
   const shellLabel = sessions[terminal.id]?.shell ?? 'Starting';
   const displayOpacity = isOverview ? 1 : (isActive ? 1 : 0.9);
 
@@ -28,52 +28,50 @@ export const TerminalPanel: React.FC<Props> = ({ terminal, terminalIndex, isActi
       }}
       style={{
         width: w,
-        height: isTerminalFullscreen && isActive ? '94vh' : '86vh',
+        height: isTerminalFullscreen && isActive ? 'calc(100% - 8px)' : '86%',
         flexShrink: 0,
         margin: isTerminalFullscreen && isActive ? '0' : `0 ${GAPS_VW / 2}vw`,
-        borderRadius: '18px',
-        border: (isActive || isOverview)
-          ? `1.5px solid ${theme.accent}${isActive ? '' : '40'}`
-          : '1.5px solid transparent',
+        borderRadius: '2px',
+        border: `1px solid ${isActive || isOverview ? theme.accent : theme.border}`,
         background: theme.panelBg,
-        backdropFilter: (isActive || isOverview) ? 'blur(32px) saturate(160%)' : 'blur(10px)',
-        transition: 'all 0.6s cubic-bezier(0.22, 1, 0.36, 1)',
+        transition: 'border-color 140ms linear, opacity 140ms linear',
         opacity: displayOpacity,
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
         position: 'relative',
-        boxShadow: isActive ? `inset 0 0 60px ${theme.accent}10` : 'none',
+        boxShadow: 'none',
       }}
     >
       <div
         style={{
-          padding: '10px 16px',
-          borderBottom: `1px solid ${isActive ? theme.border : 'transparent'}`,
+          padding: '8px 12px',
+          borderBottom: `1px solid ${theme.border}`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           background: 'rgba(255,255,255,0.02)',
+          minHeight: '34px',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div style={{ display: 'flex', gap: '5px' }}>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ff5f56b0' }} />
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ffbd2eb0' }} />
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#27c93fb0' }} />
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f85149', opacity: 0.65 }} />
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#d29922', opacity: 0.65 }} />
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#3fb950', opacity: 0.65 }} />
           </div>
           <span
             style={{
               marginLeft: 4,
-              fontFamily: 'JetBrains Mono, monospace',
-              fontSize: 9,
-              color: isActive ? theme.accent : theme.textDim,
-              letterSpacing: '0.12em',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              color: isActive ? theme.text : theme.textDim,
+              letterSpacing: '0.04em',
               fontWeight: 500,
-              opacity: (isActive || isOverview) ? 1 : 0.5,
+              opacity: isActive || isOverview ? 1 : 0.65,
             }}
           >
-            {`TERMINAL ${terminalIndex + 1} - ${shellLabel}`}
+            {`terminal-${terminalIndex + 1} :: ${shellLabel}`}
           </span>
         </div>
       </div>

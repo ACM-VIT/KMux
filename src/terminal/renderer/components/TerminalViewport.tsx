@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Terminal as XtermTerminal } from '@xterm/xterm';
 import { useCanvasStore } from '../../../store/useCanvasStore';
-import type { TerminalSessionSnapshot } from '../../shared/terminal-types';
+import type { TerminalGitStatus, TerminalSessionSnapshot } from '../../shared/terminal-types';
 import { useTerminalRuntime } from '../context/useTerminalRuntime';
 import { observeTerminalSize } from '../utils/terminalSizing';
 import { createXterm } from '../xterm/createXterm';
@@ -12,9 +12,20 @@ interface Props {
   isActive: boolean;
 }
 
-const getStatusLabel = (session: TerminalSessionSnapshot | undefined): string => {
+const GIT_STATUS_TRIGGER_DELAY_MS = 250;
+const GIT_STATUS_FALLBACK_INTERVAL_MS = 20000;
+
+const getStatusLabel = (
+  session: TerminalSessionSnapshot | undefined,
+  gitStatus: TerminalGitStatus | null,
+): string => {
   if (!session) return 'starting...';
-  if (session.status === 'running') return session.shell || 'running';
+  if (session.status === 'running') {
+    if (!gitStatus?.branchName) {
+      return session.shell || 'running';
+    }
+    return `${gitStatus.branchName}${gitStatus.isDirty ? '*' : ''}`;
+  }
   if (session.status === 'exited') return `exited (${session.exitCode ?? 0})`;
   if (session.status === 'error') return session.errorMessage ?? 'failed to start';
   return 'starting...';
@@ -27,9 +38,69 @@ export const TerminalViewport: React.FC<Props> = ({ terminalId, isActive }) => {
   const xtermRef = useRef<XtermTerminal | null>(null);
   const bootstrappedRef = useRef(false);
   const hideScrollbarTimerRef = useRef<number | null>(null);
+  const gitStatusRefreshTimerRef = useRef<number | null>(null);
+  const gitStatusRequestIdRef = useRef(0);
   const [isScrolling, setIsScrolling] = useState(false);
+  const [gitStatus, setGitStatus] = useState<TerminalGitStatus | null>(null);
 
   const session = sessions[terminalId];
+  const latestSessionRef = useRef<TerminalSessionSnapshot | undefined>(session);
+
+  useEffect(() => {
+    latestSessionRef.current = session;
+  }, [session]);
+
+  useEffect(() => {
+    return () => {
+      if (gitStatusRefreshTimerRef.current !== null) {
+        window.clearTimeout(gitStatusRefreshTimerRef.current);
+        gitStatusRefreshTimerRef.current = null;
+      }
+      gitStatusRequestIdRef.current += 1;
+    };
+  }, []);
+
+  const refreshGitStatus = useCallback(async (): Promise<void> => {
+    const currentRequestId = ++gitStatusRequestIdRef.current;
+    const activeSession = latestSessionRef.current;
+    if (!activeSession || activeSession.status !== 'running') {
+      setGitStatus(null);
+      return;
+    }
+
+    try {
+      const status = await window.terminalApi.getTerminalGitStatus({ terminalId });
+      if (currentRequestId === gitStatusRequestIdRef.current) {
+        setGitStatus(status);
+      }
+    } catch (error) {
+      if (currentRequestId === gitStatusRequestIdRef.current) {
+        setGitStatus(null);
+      }
+      console.error(`Failed to read git status for terminal "${terminalId}".`, error);
+    }
+  }, [terminalId]);
+
+  const scheduleGitStatusRefresh = useCallback((): void => {
+    if (gitStatusRefreshTimerRef.current !== null) {
+      window.clearTimeout(gitStatusRefreshTimerRef.current);
+    }
+
+    gitStatusRefreshTimerRef.current = window.setTimeout(() => {
+      gitStatusRefreshTimerRef.current = null;
+      void refreshGitStatus();
+    }, GIT_STATUS_TRIGGER_DELAY_MS);
+  }, [refreshGitStatus]);
+
+  useEffect(() => {
+    if (isActive) {
+      return;
+    }
+    if (gitStatusRefreshTimerRef.current !== null) {
+      window.clearTimeout(gitStatusRefreshTimerRef.current);
+      gitStatusRefreshTimerRef.current = null;
+    }
+  }, [isActive]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -118,18 +189,57 @@ export const TerminalViewport: React.FC<Props> = ({ terminalId, isActive }) => {
     }
   }, [session]);
 
+  useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+
+    const detachGitStatusChanged = window.terminalApi.onGitStatusChanged((event) => {
+      if (event.terminalId !== terminalId) {
+        return;
+      }
+      scheduleGitStatusRefresh();
+    });
+
+    return () => {
+      detachGitStatusChanged();
+    };
+  }, [isActive, scheduleGitStatusRefresh, terminalId]);
+
+  useEffect(() => {
+    if (!session || session.status !== 'running' || !isActive) {
+      if (session?.status === 'exited' || session?.status === 'error') {
+        setGitStatus(null);
+      }
+      return;
+    }
+
+    scheduleGitStatusRefresh();
+    const fallbackIntervalId = window.setInterval(() => {
+      scheduleGitStatusRefresh();
+    }, GIT_STATUS_FALLBACK_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(fallbackIntervalId);
+    };
+  }, [isActive, scheduleGitStatusRefresh, session?.cwd, session?.status]);
+
+  const statusLabel = getStatusLabel(session, gitStatus);
+
   return (
     <div className={`w-full h-full relative terminal-viewport-shell ${isScrolling ? 'is-scrolling' : ''}`}>
       <div ref={containerRef} className="w-full h-full px-2 py-1.5" />
-      <div
-        className="absolute right-2 bottom-1.5 rounded px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider pointer-events-none"
-        style={{
-          color: theme.textDim,
-          background: 'rgba(0,0,0,0.2)',
-        }}
-      >
-        {getStatusLabel(session)}
-      </div>
+      {statusLabel.length > 0 ? (
+        <div
+          className="absolute right-2 bottom-1.5 rounded px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider pointer-events-none"
+          style={{
+            color: theme.textDim,
+            background: 'rgba(0,0,0,0.2)',
+          }}
+        >
+          {statusLabel}
+        </div>
+      ) : null}
     </div>
   );
 };

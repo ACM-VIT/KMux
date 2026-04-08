@@ -2,6 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --font-ui: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', monospace;
+
+  --color-bg-base: #0d1017;
+  --color-bg-surface: #131722;
+  --color-bg-hover: #1a1f2d;
+  --color-border: #2d333b;
+
+  --color-text: #c9d1d9;
+  --color-text-muted: #8b949e;
+  --color-text-dim: #6e7681;
+
+  --color-primary: #58a6ff;
+  --color-git-add: #3fb950;
+  --color-git-mod: #d2a8ff;
+  --color-git-del: #f85149;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -9,9 +30,9 @@
 }
 
 body {
-  background: #020617;
-  color: #e2e8f0;
-  font-family: 'IBM Plex Mono', 'Cascadia Code', monospace;
+  background: var(--color-bg-base);
+  color: var(--color-text);
+  font-family: var(--font-ui);
   overflow: hidden;
   width: 100vw;
   height: 100vh;
@@ -67,4 +88,23 @@ body {
   background: rgba(255, 255, 255, 0.35);
   border-radius: 999px;
   border: 2px solid rgba(0, 0, 0, 0.25);
+}
+
+.repo-sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) rgba(255, 255, 255, 0.04);
+}
+
+.repo-sidebar-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.repo-sidebar-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.repo-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  border: 2px solid rgba(0, 0, 0, 0.08);
 }
