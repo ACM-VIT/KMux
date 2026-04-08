@@ -14,7 +14,6 @@
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
     "typecheck": "tsc --noEmit",
-    "test:terminal": "node --experimental-strip-types --experimental-specifier-resolution=node --test tests/terminal/**/*.test.ts"
   },
   "keywords": [],
   "author": {
