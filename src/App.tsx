@@ -8,6 +8,7 @@
 import React from 'react';
 import { useKeyboardNav } from './hooks/useKeyboardNav';
 import { CanvasContainer } from './components/CanvasContainer';
+import { ControlsOverlay } from './components/ControlsOverlay';
 import { TerminalPickerModal } from './terminal/renderer/components/TerminalPickerModal';
 import { TerminalPickerProvider } from './terminal/renderer/context/TerminalPickerProvider';
 import { TerminalRuntimeProvider } from './terminal/renderer/context/TerminalRuntimeProvider';
@@ -17,6 +18,7 @@ const AppContent: React.FC = () => {
   return (
     <>
       <CanvasContainer />
+      <ControlsOverlay />
       <TerminalPickerModal />
     </>
   );

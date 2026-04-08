@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ChangesSidebar } from '../repo/renderer/components/ChangesSidebar';
+import { useRepoDockState } from '../repo/renderer/hooks/useRepoDockState';
 import { useCanvasStore } from '../store/useCanvasStore';
+import { useTerminalRuntime } from '../terminal/renderer/context/useTerminalRuntime';
 import { WorkspaceRow } from './WorkspaceRow';
 import { FuzzyFinder } from './FuzzyFinder';
 import {
@@ -7,34 +10,105 @@ import {
   SCREEN_HEIGHT_VH,
   TRANSITION_CANVAS,
   TRANSITION_UI,
-  UI_HIDE_TIMEOUT,
-  Z_LAYERS,
 } from '../lib/constants';
+
+const ACTIVITY_BAR_WIDTH_PX = 48;
+const SIDEBAR_PANEL_WIDTH_PX = 240;
+const STATUS_BAR_HEIGHT_PX = 24;
 
 export const CanvasContainer: React.FC = () => {
   const { workspaces, activeWorkspaceIndex, isOverview, theme } = useCanvasStore();
+  const { sessions } = useTerminalRuntime();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isDockHovering, setIsDockHovering] = useState(false);
+  const [isDockShortcutVisible, setIsDockShortcutVisible] = useState(false);
+  const dockShortcutTimerRef = useRef<number | null>(null);
+  const repoDockState = useRepoDockState();
+  const hasGitRepo = repoDockState.snapshot?.isRepo === true;
+  const isDockVisible = hasGitRepo && (isDockHovering || isDockShortcutVisible);
+  const leftDockWidth = isDockVisible
+    ? ACTIVITY_BAR_WIDTH_PX + (isSidebarOpen ? SIDEBAR_PANEL_WIDTH_PX : 0)
+    : 0;
+  const workspaceIndicatorLeft = Math.max(12, leftDockWidth + 8);
+  const translateY = -(activeWorkspaceIndex * SCREEN_HEIGHT_VH);
 
-  const [controlsVisible, setControlsVisible] = useState(true);
-
-  useEffect(() => {
-    let id: number;
-    if (controlsVisible) {
-      id = window.setTimeout(() => setControlsVisible(false), UI_HIDE_TIMEOUT);
+  const clearDockShortcutTimer = (): void => {
+    if (dockShortcutTimerRef.current !== null) {
+      window.clearTimeout(dockShortcutTimerRef.current);
+      dockShortcutTimerRef.current = null;
     }
-    return () => clearTimeout(id);
-  }, [controlsVisible]);
+  };
+
+  const revealDockFromShortcut = (): void => {
+    clearDockShortcutTimer();
+    setIsDockShortcutVisible(true);
+    dockShortcutTimerRef.current = window.setTimeout(() => {
+      setIsDockShortcutVisible(false);
+      dockShortcutTimerRef.current = null;
+    }, 1800);
+  };
 
   useEffect(() => {
-    const poke = () => setControlsVisible(true);
-    window.addEventListener('keydown', poke, true);
-    window.addEventListener('mousemove', poke, true);
+    if (!hasGitRepo) {
+      setIsSidebarOpen(false);
+      setIsDockHovering(false);
+      setIsDockShortcutVisible(false);
+      clearDockShortcutTimer();
+    }
+  }, [hasGitRepo]);
+
+  useEffect(() => {
     return () => {
-      window.removeEventListener('keydown', poke, true);
-      window.removeEventListener('mousemove', poke, true);
+      clearDockShortcutTimer();
     };
   }, []);
 
-  const translateY = -(activeWorkspaceIndex * SCREEN_HEIGHT_VH);
+  useEffect(() => {
+    const handleDockShortcut = (event: KeyboardEvent): void => {
+      if (!hasGitRepo) {
+        return;
+      }
+      if (!(event.metaKey || event.altKey) || event.key.toLowerCase() !== 'd' || event.repeat) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      revealDockFromShortcut();
+      setIsSidebarOpen((current) => !current);
+    };
+
+    window.addEventListener('keydown', handleDockShortcut, true);
+    return () => {
+      window.removeEventListener('keydown', handleDockShortcut, true);
+    };
+  }, [hasGitRepo]);
+
+  const activeWorkspace = workspaces[activeWorkspaceIndex];
+  const activeTerminal = activeWorkspace
+    ? activeWorkspace.terminals[activeWorkspace.activeTerminalIndex]
+    : undefined;
+  const activeSession = activeTerminal ? sessions[activeTerminal.id] : undefined;
+  const profileLabel = activeSession?.shell ?? activeTerminal?.profileId ?? 'local';
+  const isRemoteProfile = /ssh|remote|wsl|container/i.test(profileLabel);
+
+  const totalChanges = useMemo(() => {
+    if (!repoDockState.snapshot?.isRepo) {
+      return 0;
+    }
+    const status = repoDockState.snapshot.status;
+    return status.modified + status.added + status.deleted + status.untracked + status.conflicts;
+  }, [repoDockState.snapshot]);
 
   return (
     <div
@@ -45,50 +119,135 @@ export const CanvasContainer: React.FC = () => {
       }}
     >
       <div
-        className="w-full h-full"
+        className="pointer-events-none absolute inset-0"
         style={{
-          transition: `transform ${TRANSITION_CANVAS}`,
-          transform: isOverview ? `scale(${OVERVIEW_SCALE})` : 'scale(1)',
-          transformOrigin: 'center center',
+          background: `
+            radial-gradient(70% 45% at 18% 42%, ${theme.accent}10 0%, transparent 68%),
+            radial-gradient(55% 42% at 78% 16%, rgba(255,255,255,0.035) 0%, transparent 72%),
+            linear-gradient(180deg, rgba(255,255,255,0.015), transparent 22%)
+          `,
+        }}
+      />
+
+      {hasGitRepo && !isDockVisible ? (
+        <div
+          className="absolute left-0 top-0 z-40"
+          style={{
+            width: '16px',
+            height: `calc(100% - ${STATUS_BAR_HEIGHT_PX}px)`,
+          }}
+          onMouseEnter={() => setIsDockHovering(true)}
+        />
+      ) : null}
+
+      <div
+        className="absolute top-0 right-0 overflow-hidden transition-[width,height,transform] duration-150 ease-out"
+        style={{
+          width: `calc(100% - ${leftDockWidth}px)`,
+          height: `calc(100% - ${STATUS_BAR_HEIGHT_PX}px)`,
         }}
       >
         <div
-          className="w-full h-full transition-transform"
+          className="w-full h-full"
           style={{
             transition: `transform ${TRANSITION_CANVAS}`,
-            transform: `translateY(${translateY}vh)`,
+            transform: isOverview ? `scale(${OVERVIEW_SCALE})` : 'scale(1)',
+            transformOrigin: 'center center',
           }}
         >
-          {workspaces.map((ws) => (
-            <WorkspaceRow
-              key={ws.id}
-              workspace={ws}
-              isActiveWorkspace={ws.id === workspaces[activeWorkspaceIndex]?.id}
-            />
-          ))}
+          <div
+            className="w-full h-full transition-transform"
+            style={{
+              transition: `transform ${TRANSITION_CANVAS}`,
+              transform: `translateY(${translateY}vh)`,
+            }}
+          >
+            {workspaces.map((ws) => (
+              <WorkspaceRow
+                key={ws.id}
+                workspace={ws}
+                isActiveWorkspace={ws.id === workspaces[activeWorkspaceIndex]?.id}
+              />
+            ))}
+          </div>
         </div>
+
       </div>
 
       <FuzzyFinder />
 
       <div
-        className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-2"
-        style={{ zIndex: Z_LAYERS.INDICATORS }}
+        className="absolute left-0 top-0 h-full overflow-hidden transition-[width] duration-150 ease-out"
+        style={{
+          width: `${leftDockWidth}px`,
+          height: `calc(100% - ${STATUS_BAR_HEIGHT_PX}px)`,
+          borderRight: isDockVisible ? `1px solid ${theme.border}` : 'none',
+          background: `linear-gradient(180deg, ${theme.panelBg}, rgba(0,0,0,0.18))`,
+          boxShadow: `10px 0 28px rgba(0,0,0,0.35)`,
+          zIndex: 35,
+          pointerEvents: isDockVisible ? 'auto' : 'none',
+        }}
+        onMouseEnter={() => {
+          clearDockShortcutTimer();
+          setIsDockShortcutVisible(false);
+          setIsDockHovering(true);
+        }}
+        onMouseLeave={() => {
+          setIsDockHovering(false);
+        }}
+      >
+        <ChangesSidebar
+          isOpen={hasGitRepo && isSidebarOpen}
+          onToggle={() => {
+            if (!hasGitRepo) {
+              return;
+            }
+            setIsSidebarOpen((current) => !current);
+          }}
+          state={repoDockState}
+        />
+      </div>
+
+      <div
+        className="pointer-events-none absolute top-0 z-30 w-7 transition-[left] duration-150 ease-out"
+        style={{
+          left: `${Math.max(10, leftDockWidth - 3)}px`,
+          height: `calc(100% - ${STATUS_BAR_HEIGHT_PX}px)`,
+          background: `linear-gradient(90deg, ${theme.accent}44 0%, ${theme.accent}16 34%, transparent 100%)`,
+          filter: 'blur(12px)',
+          opacity: isDockVisible ? 0.9 : 0,
+        }}
+      />
+
+      <div
+        className="pointer-events-none absolute top-1/2 -translate-y-1/2 flex flex-col gap-2 z-40 transition-[left] duration-150 ease-out"
+        style={{ left: `${workspaceIndicatorLeft}px` }}
       >
         {workspaces.map((_, index) => (
           <div
             key={index}
             className="flex items-center justify-center rounded-lg transition-all duration-700 text-[9px] font-mono font-bold"
             style={{
-              width: activeWorkspaceIndex === index ? '28px' : '20px',
-              height: activeWorkspaceIndex === index ? '28px' : '20px',
-              background: activeWorkspaceIndex === index ? `${theme.accent}15` : 'rgba(255,255,255,0.02)',
-              border: `1px solid ${activeWorkspaceIndex === index ? `${theme.accent}88` : theme.border}`,
+              width: activeWorkspaceIndex === index ? '30px' : '19px',
+              height: activeWorkspaceIndex === index ? '30px' : '19px',
+              borderRadius: activeWorkspaceIndex === index ? '10px' : '8px',
+              background:
+                activeWorkspaceIndex === index
+                  ? `linear-gradient(145deg, ${theme.accent}3a, ${theme.accent}14)`
+                  : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${activeWorkspaceIndex === index ? `${theme.accent}a6` : theme.border}`,
               color: activeWorkspaceIndex === index ? theme.accent : theme.textDim,
-              opacity: activeWorkspaceIndex === index ? 1 : 0.4,
-              boxShadow: activeWorkspaceIndex === index ? `0 4px 12px ${theme.accent}22` : 'none',
-              transform: activeWorkspaceIndex === index ? 'scale(1.1)' : 'scale(1)',
-              marginLeft: activeWorkspaceIndex === index ? '-4px' : '0'
+              opacity: activeWorkspaceIndex === index ? 1 : Math.max(0.38, 0.66 - Math.abs(activeWorkspaceIndex - index) * 0.1),
+              boxShadow:
+                activeWorkspaceIndex === index
+                  ? `0 0 0 1px ${theme.accent}30, 0 8px 22px ${theme.accent}45`
+                  : 'none',
+              transform:
+                activeWorkspaceIndex === index
+                  ? 'translateX(3px) scale(1.08)'
+                  : `translateX(${-Math.min(Math.abs(activeWorkspaceIndex - index) * 2, 8)}px) scale(${Math.max(0.92, 1 - Math.abs(activeWorkspaceIndex - index) * 0.04)})`,
+              fontFamily: 'var(--font-ui)',
+              letterSpacing: '0.02em',
             }}
           >
             {index + 1}
@@ -97,53 +256,46 @@ export const CanvasContainer: React.FC = () => {
       </div>
 
       <div
-        className="absolute top-5 right-5 transition-opacity"
+        className="absolute left-0 bottom-0 flex h-6 w-full items-center justify-between border-t px-3"
         style={{
-          zIndex: Z_LAYERS.CONTROLS,
-          transition: `opacity ${TRANSITION_UI}`,
-          opacity: controlsVisible ? 1 : 0,
-          pointerEvents: controlsVisible ? 'auto' : 'none',
+          background: theme.panelBg,
+          borderColor: theme.border,
+          color: theme.textDim,
         }}
       >
         <div
-          className="px-6 py-5 rounded-2xl border backdrop-blur-3xl shadow-3xl text-[10px] tracking-[0.18em] uppercase flex flex-col gap-3"
-          style={{
-            background: theme.panelBg,
-            borderColor: theme.border,
-            color: theme.textDim,
-          }}
+          className="flex min-w-0 items-center gap-3 text-[11px]"
+          style={{ fontFamily: 'JetBrains Mono, monospace' }}
         >
-          <div className="border-b pb-2 mb-1 flex justify-between" style={{ borderColor: theme.border }}>
-            <span style={{ color: theme.accent, fontWeight: 700 }}>KMux Controls</span>
-            <span>Theme: {theme.name}</span>
-          </div>
-          <div className="opacity-40 italic mb-1 text-[9px]">modifiers: alt or super</div>
-          <p>arrows - focus terminal / workspace</p>
-          <p>enter - new terminal</p>
-          <p>n - new workspace</p>
-          <p>shift + alt + enter - choose terminal profile</p>
-          <p>shift + alt + n - choose workspace profile</p>
-          <p>q/w - close terminal</p>
-          <p>o - toggle overview</p>
-          <p>f - fuzzy finder</p>
-          <p>-/= - resize width</p>
+          <span style={{ color: theme.accent, fontFamily: 'JetBrains Mono, monospace' }}>
+            {repoDockState.snapshot?.branch ?? 'no-repo'}
+          </span>
+          <span className="truncate">
+            {repoDockState.activeCwd ?? 'No active directory'}
+          </span>
+          {totalChanges > 0 ? (
+            <span style={{ color: theme.accent }}>{totalChanges} changed</span>
+          ) : null}
         </div>
-      </div>
-
-      <div
-        className="absolute bottom-5 left-1/2 -translate-x-1/2 transition-opacity"
-        style={{
-          zIndex: Z_LAYERS.CONTROLS,
-          transition: `opacity ${TRANSITION_UI}`,
-          opacity: controlsVisible ? 0.6 : 0,
-        }}
-      >
-        <span
-          className="text-[10px] tracking-[0.5em] font-light uppercase"
-          style={{ color: theme.text, fontFamily: 'JetBrains Mono, monospace' }}
+        <div
+          className="flex items-center gap-3 text-[11px]"
+          style={{ fontFamily: 'JetBrains Mono, monospace' }}
         >
-          {`WORKSPACE ${activeWorkspaceIndex + 1}`}
-        </span>
+          <span>WS {activeWorkspaceIndex + 1}</span>
+          <button
+            type="button"
+            className="border px-2 leading-5"
+            style={{
+              borderColor: theme.border,
+              color: isRemoteProfile ? theme.accent : theme.text,
+              borderRadius: '2px',
+              fontFamily: 'JetBrains Mono, monospace',
+            }}
+            title="Active terminal profile"
+          >
+            {profileLabel}
+          </button>
+        </div>
       </div>
     </div>
   );

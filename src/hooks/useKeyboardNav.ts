@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
 import { useCanvasStore } from '../store/useCanvasStore';
 import { useTerminalPicker } from '../terminal/renderer/context/use-terminal-picker';
+import { createBindingTokenFromEvent, normalizeBindingKey } from '../utils/keyboard-bindings';
 
 export const useKeyboardNav = () => {
   const {
     moveTerminal,
     moveWorkspace,
-    jumpToTerminal,
     jumpToWorkspace,
     addTerminal,
     addWorkspace,
@@ -17,93 +17,86 @@ export const useKeyboardNav = () => {
     toggleTerminalFullscreen,
     cycleThemes,
     toggleSearch,
+    isControlsOpen,
+    controls,
   } = useCanvasStore();
   const { isOpen: isPickerOpen, openPicker } = useTerminalPicker();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isPickerOpen) {
+      if (isPickerOpen || isControlsOpen) {
         return;
       }
 
       // Intercept Meta (Cmd/Win) or Alt keys
       if (e.metaKey || e.altKey) {
         let handled = false;
-        const key = e.key.toLowerCase();
+        const rawKey = normalizeBindingKey(e);
+        const bindingToken = createBindingTokenFromEvent(e);
 
-        if (e.altKey && e.shiftKey && key === 'enter') {
+        if (!bindingToken) {
+          return;
+        }
+
+        if (controls.terminalPicker === bindingToken) {
           openPicker('terminal');
           handled = true;
-        } else if (e.altKey && e.shiftKey && key === 'n') {
+        } else if (controls.workspacePicker === bindingToken) {
           openPicker('workspace');
           handled = true;
-        } else if (e.altKey && key === 'b') {
+        } else if (controls.fullscreen === bindingToken) {
           toggleTerminalFullscreen();
           handled = true;
-        } else if (/^[0-9]$/.test(key)) {
-          jumpToWorkspace(key === '0' ? 9 : parseInt(key, 10) - 1);
+        } else if (/^[0-9]$/.test(rawKey)) {
+          jumpToWorkspace(rawKey === '0' ? 9 : parseInt(rawKey, 10) - 1);
           handled = true;
         } else {
-          switch (key) {
-            case 'arrowleft':
-            case 'h':
-              moveTerminal('left');
-              handled = true;
-              break;
-            case 'arrowright':
-            case 'l':
-              moveTerminal('right');
-              handled = true;
-              break;
-            case 'arrowup':
-            case 'k':
-              moveWorkspace('up');
-              handled = true;
-              break;
-            case 'arrowdown':
-            case 'j':
-              moveWorkspace('down');
-              handled = true;
-              break;
-            case 'enter':
-              addTerminal();
-              handled = true;
-              break;
-            case 'n':
-              addWorkspace();
-              handled = true;
-              break;
-            case 'w':
-            case 'q':
-            case 'x':
-              removeTerminal();
-              handled = true;
-              break;
-            case 'o':
-              toggleOverview();
-              handled = true;
-              break;
-            case 't':
-              cycleThemes();
-              handled = true;
-              break;
-            case 'f':
-              toggleSearch();
-              handled = true;
-              break;
-            case 'r':
-              cycleWidth();
-              handled = true;
-              break;
-            case '-':
-              resizeTerminal('shrink');
-              handled = true;
-              break;
-            case '=':
-            case '+':
-              resizeTerminal('expand');
-              handled = true;
-              break;
+          if (controls.moveTerminalLeft === bindingToken || rawKey === 'arrowleft') {
+            moveTerminal('left');
+            handled = true;
+          } else if (controls.moveTerminalRight === bindingToken || rawKey === 'arrowright') {
+            moveTerminal('right');
+            handled = true;
+          } else if (controls.moveWorkspaceUp === bindingToken || rawKey === 'arrowup') {
+            moveWorkspace('up');
+            handled = true;
+          } else if (controls.moveWorkspaceDown === bindingToken || rawKey === 'arrowdown') {
+            moveWorkspace('down');
+            handled = true;
+          } else if (controls.newTerminal === bindingToken) {
+            addTerminal();
+            handled = true;
+          } else if (controls.newWorkspace === bindingToken) {
+            addWorkspace();
+            handled = true;
+          } else if (
+            controls.closeTerminal === bindingToken ||
+            rawKey === 'w' ||
+            rawKey === 'x'
+          ) {
+            removeTerminal();
+            handled = true;
+          } else if (controls.overview === bindingToken) {
+            toggleOverview();
+            handled = true;
+          } else if (controls.theme === bindingToken) {
+            cycleThemes();
+            handled = true;
+          } else if (controls.search === bindingToken) {
+            toggleSearch();
+            handled = true;
+          } else if (controls.cycleWidth === bindingToken) {
+            cycleWidth();
+            handled = true;
+          } else if (controls.resizeShrink === bindingToken) {
+            resizeTerminal('shrink');
+            handled = true;
+          } else if (
+            controls.resizeExpand === bindingToken ||
+            rawKey === '+'
+          ) {
+            resizeTerminal('expand');
+            handled = true;
           }
         }
 
@@ -123,7 +116,6 @@ export const useKeyboardNav = () => {
   }, [
     moveTerminal,
     moveWorkspace,
-    jumpToTerminal,
     jumpToWorkspace,
     addTerminal,
     addWorkspace,
@@ -134,6 +126,8 @@ export const useKeyboardNav = () => {
     toggleTerminalFullscreen,
     cycleThemes,
     toggleSearch,
+    isControlsOpen,
+    controls,
     isPickerOpen,
     openPicker,
   ]);

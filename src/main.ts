@@ -2,19 +2,25 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { mainWindowConfig, shouldOpenDevTools } from './config/window';
+import { RepoManager } from './repo/main/RepoManager';
+import { registerRepoIpc } from './repo/main/registerRepoIpc';
 import { TerminalManager } from './terminal/main/TerminalManager';
 import { registerTerminalIpc } from './terminal/main/registerTerminalIpc';
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
   app.quit();
 }
 
 const terminalManager = new TerminalManager();
+const repoManager = new RepoManager();
 const unregisterTerminalIpc = registerTerminalIpc({
   ipcMain,
   getWindows: () => BrowserWindow.getAllWindows(),
   terminalManager,
+});
+const unregisterRepoIpc = registerRepoIpc({
+  ipcMain,
+  repoManager,
 });
 
 const createWindow = (): BrowserWindow => {
@@ -27,7 +33,6 @@ const createWindow = (): BrowserWindow => {
   });
   mainWindow.setMenu(null);
 
-  // and load the index.html of the app.
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
@@ -53,9 +58,6 @@ app.whenReady().then(() => {
   });
 });
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     terminalManager.killAll();
@@ -64,6 +66,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  unregisterRepoIpc();
   unregisterTerminalIpc();
   terminalManager.killAll();
 });

@@ -19,16 +19,10 @@ export const WorkspaceRow: React.FC<Props> = ({ workspace, isActiveWorkspace }) 
   );
   const fitsOnScreen = totalRowWidth <= SCREEN_WIDTH_VW;
 
-  /**
-   * Cinematic Layout Logic (Infinite Strip / Sliding Window)
-   * Calculates the perspective camera's offset based on terminal density and focus.
-   */
   useEffect(() => {
     if (workspace.terminals.length === 0) return;
 
     const { activeTerminalIndex, terminals } = workspace;
-
-    // Relative positioning calculations
     let activeLeft = 0;
     for (let i = 0; i < activeTerminalIndex; i++) {
       activeLeft += getWidthVW(terminals[i].widthFraction) + GAPS_VW;
@@ -38,40 +32,31 @@ export const WorkspaceRow: React.FC<Props> = ({ workspace, isActiveWorkspace }) 
 
     let targetOffset = viewOffset;
 
-    // Single-Terminal Centering (Focal Focus mode)
     if (terminals.length === 1) {
       const solitaryWidth = getWidthVW(terminals[0].widthFraction);
       targetOffset = (solitaryWidth + GAPS_VW - SCREEN_WIDTH_VW) / 2;
-    } 
-    // Multi-Terminal Panning (Magnetic Strip mode)
-    else {
+    } else {
       const isLastTerminal = activeTerminalIndex === terminals.length - 1;
 
-      // Right-edge magnetism for context reveal
       if (isLastTerminal) {
         targetOffset = activeRight - SCREEN_WIDTH_VW + CAMERA_PADDING;
-      } 
-      // Lazy tracking for internal strip movement
-      else if (activeLeft < viewOffset + CAMERA_PADDING) {
+      } else if (activeLeft < viewOffset + CAMERA_PADDING) {
         targetOffset = activeLeft - CAMERA_PADDING;
-      } 
-      else if (activeRight > viewOffset + SCREEN_WIDTH_VW - CAMERA_PADDING) {
+      } else if (activeRight > viewOffset + SCREEN_WIDTH_VW - CAMERA_PADDING) {
         targetOffset = activeRight - SCREEN_WIDTH_VW + CAMERA_PADDING;
       }
 
       if (totalRowWidth <= SCREEN_WIDTH_VW && !isLastTerminal) {
         targetOffset = 0;
       } else if (totalRowWidth > SCREEN_WIDTH_VW) {
-        // Prevent viewport overflow of empty leading space
         targetOffset = Math.max(0, targetOffset);
       }
     }
-    
-    // Threshold-based state update to minimize jitter
+
     if (Math.abs(targetOffset - viewOffset) > 0.01) {
       setViewOffset(targetOffset);
     }
-  }, [workspace.activeTerminalIndex, workspace.terminals, viewOffset]);
+  }, [workspace.activeTerminalIndex, workspace.terminals, viewOffset, totalRowWidth]);
 
   const activeTerminal = workspace.terminals[workspace.activeTerminalIndex];
   const visibleTerminals =
@@ -83,7 +68,7 @@ export const WorkspaceRow: React.FC<Props> = ({ workspace, isActiveWorkspace }) 
 
   return (
     <div
-      className={`w-screen h-screen flex-shrink-0 flex items-center transition-opacity duration-500 ${
+      className={`w-full h-full flex-shrink-0 flex items-center transition-opacity duration-500 ${
         isActiveWorkspace ? 'opacity-100' : 'opacity-40'
       }`}
     >

@@ -1,13 +1,39 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { TerminalProfileId } from '../terminal/shared/terminal-profiles';
-import type { CanvasState, Workspace, Terminal, WidthFraction } from '../types/canvas-types';
+import type {
+  AppControlBindings,
+  CanvasState,
+  ControlAction,
+  Workspace,
+  Terminal,
+  WidthFraction,
+} from '../types/canvas-types';
 import { THEMES, WIDTH_CYCLE } from '../lib/constants';
 
 export type { Workspace, Terminal, WidthFraction };
 
 const createId = (): string => crypto.randomUUID();
 const MAX_WORKSPACES = 10;
+
+const DEFAULT_CONTROLS: AppControlBindings = {
+  moveTerminalLeft: 'h',
+  moveTerminalRight: 'l',
+  moveWorkspaceUp: 'k',
+  moveWorkspaceDown: 'j',
+  newTerminal: 'enter',
+  newWorkspace: 'n',
+  closeTerminal: 'q',
+  overview: 'o',
+  theme: 't',
+  search: 'f',
+  cycleWidth: 'r',
+  resizeShrink: '-',
+  resizeExpand: '=',
+  fullscreen: 'b',
+  terminalPicker: 'shift+enter',
+  workspacePicker: 'shift+n',
+};
 
 const createWorkspaceTitle = (workspaces: Workspace[]): string => {
   return `Workspace ${workspaces.length + 1}`;
@@ -62,8 +88,10 @@ export const useCanvasStore = create<CanvasState>()(
       activeWorkspaceIndex: 0,
       isOverview: false,
       isSearchOpen: false,
+      isControlsOpen: false,
       isTerminalFullscreen: false,
       theme: THEMES.standard,
+      controls: { ...DEFAULT_CONTROLS },
 
       setTheme: (themeName: string) => {
         const theme = THEMES[themeName.toLowerCase()];
@@ -72,6 +100,31 @@ export const useCanvasStore = create<CanvasState>()(
 
       toggleSearch: () => {
         set((state) => ({ isSearchOpen: !state.isSearchOpen }));
+      },
+
+      toggleControls: () => {
+        set((state) => ({ isControlsOpen: !state.isControlsOpen }));
+      },
+
+      setControlsOpen: (isOpen: boolean) => {
+        set({ isControlsOpen: isOpen });
+      },
+
+      setControlBinding: (action: ControlAction, key: string) => {
+        const normalizedKey = key.trim().toLowerCase();
+        if (!normalizedKey) {
+          return;
+        }
+        set((state) => ({
+          controls: {
+            ...state.controls,
+            [action]: normalizedKey,
+          },
+        }));
+      },
+
+      resetControls: () => {
+        set({ controls: { ...DEFAULT_CONTROLS } });
       },
 
       jumpToGlobalTerminal: (terminalId: string) => {
