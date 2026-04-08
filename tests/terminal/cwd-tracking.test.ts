@@ -30,6 +30,24 @@ test('extracts cwd from command prompt output', () => {
   assert.equal(cwd, 'C:\\Users\\tester\\repo');
 });
 
+test('extracts cwd from posix prompt output with absolute path', () => {
+  const output = 'tester@host:/home/tester/repo$ ';
+  const cwd = extractTrackedCwdFromOutput(output, 'linux');
+  assert.equal(cwd, '/home/tester/repo');
+});
+
+test('extracts cwd from posix prompt output with home shortcut', () => {
+  const output = 'tester@host:~/repo$ ';
+  const cwd = extractTrackedCwdFromOutput(output, 'linux', '/home/tester');
+  assert.equal(cwd, '/home/tester/repo');
+});
+
+test('extracts cwd from generic prompt symbols without shell-specific prefixes', () => {
+  const output = '\r\n~/workspace/repo ❯ ';
+  const cwd = extractTrackedCwdFromOutput(output, 'linux', '/home/tester');
+  assert.equal(cwd, '/home/tester/workspace/repo');
+});
+
 test('resolves next cwd from cd command', () => {
   const cwd = resolveNextCwdFromCommand(
     'cd ../repo-2',

@@ -125,7 +125,7 @@ export class TerminalManager {
     this.refreshGitWatcherForSession(sessionRecord);
 
     ptyProcess.onData((data) => {
-      const trackedCwd = extractTrackedCwdFromOutput(data, process.platform);
+      const trackedCwd = extractTrackedCwdFromOutput(data, process.platform, os.homedir());
       if (
         trackedCwd &&
         trackedCwd !== sessionRecord.snapshot.cwd &&

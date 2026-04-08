@@ -14,8 +14,9 @@ const OSC_633_CWD_PATTERN = new RegExp(
   'g',
 );
 const ANSI_CSI_SEQUENCE_PATTERN = new RegExp(`${ESC}\\[[0-?]*[ -/]*[@-~]`, 'g');
-const POWERSHELL_PROMPT_PATTERN = /(?:^|\r?\n)\s*PS\s+([^>\r\n]+)>/gi;
-const CMD_PROMPT_PATTERN = /(?:^|\r?\n)\s*([a-z]:\\[^>\r\n]*)>/gi;
+const PROMPT_SUFFIX_PATTERN = /([^\p{L}\p{N}\s]{1,4})$/u;
+const POSIX_TRAILING_PATH_PATTERN = /((?:~|\/)\S+)$/;
+const WINDOWS_TRAILING_PATH_PATTERN = /([a-z]:\\.+)$/i;
 
 const stripWrappingQuotes = (value: string): string => {
   if (value.length >= 2) {
@@ -77,23 +78,54 @@ const normalizePromptPath = (value: string, platform: NodeJS.Platform): string |
   return normalizePathForPlatform(normalizedPath, platform);
 };
 
+const stripPromptSuffix = (line: string): string | null => {
+  const trimmedLine = line.trimEnd();
+  if (trimmedLine.length === 0) {
+    return null;
+  }
+
+  const suffixMatch = PROMPT_SUFFIX_PATTERN.exec(trimmedLine);
+  if (!suffixMatch) {
+    return null;
+  }
+
+  const promptCore = trimmedLine.slice(0, suffixMatch.index).trimEnd();
+  return promptCore.length > 0 ? promptCore : null;
+};
+
 const extractPromptCwdFromOutput = (
   output: string,
   platform: NodeJS.Platform,
+  homeDirectory = '',
 ): string | null => {
   const sanitizedOutput = output
     .replace(ANSI_CSI_SEQUENCE_PATTERN, '')
     .replace(OSC_7_CWD_PATTERN, '')
     .replace(OSC_633_CWD_PATTERN, '');
 
-  const powershellPath = readLastMatch(POWERSHELL_PROMPT_PATTERN, sanitizedOutput);
-  if (powershellPath) {
-    return normalizePromptPath(powershellPath, platform);
-  }
+  const lines = sanitizedOutput.split(/\r?\n/);
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const promptCore = stripPromptSuffix(lines[index] ?? '');
+    if (!promptCore) {
+      continue;
+    }
 
-  const cmdPath = readLastMatch(CMD_PROMPT_PATTERN, sanitizedOutput);
-  if (cmdPath) {
-    return normalizePromptPath(cmdPath, platform);
+    const windowsTrailingPath = WINDOWS_TRAILING_PATH_PATTERN.exec(promptCore);
+    if (windowsTrailingPath?.[1]) {
+      return normalizePromptPath(windowsTrailingPath[1], platform);
+    }
+
+    const posixTrailingPath = POSIX_TRAILING_PATH_PATTERN.exec(promptCore);
+    if (posixTrailingPath?.[1]) {
+      let normalizedPosixPath = posixTrailingPath[1].trim();
+      const normalizedHome = homeDirectory.trim();
+      if (normalizedPosixPath === '~' && normalizedHome.length > 0) {
+        normalizedPosixPath = normalizedHome;
+      } else if (normalizedPosixPath.startsWith('~/') && normalizedHome.length > 0) {
+        normalizedPosixPath = path.posix.join(normalizedHome, normalizedPosixPath.slice(2));
+      }
+      return normalizePathForPlatform(normalizedPosixPath, platform);
+    }
   }
 
   return null;
@@ -181,6 +213,7 @@ const skipEscapeSequence = (value: string, escapeStartIndex: number): number => 
 export const extractTrackedCwdFromOutput = (
   output: string,
   platform: NodeJS.Platform,
+  homeDirectory = '',
 ): string | null => {
   const osc633Path = readLastMatch(OSC_633_CWD_PATTERN, output);
   if (osc633Path) {
@@ -193,7 +226,7 @@ export const extractTrackedCwdFromOutput = (
     return normalizePathForPlatform(decodedPath, platform);
   }
 
-  return extractPromptCwdFromOutput(output, platform);
+  return extractPromptCwdFromOutput(output, platform, homeDirectory);
 };
 
 export const resolveNextCwdFromCommand = (
