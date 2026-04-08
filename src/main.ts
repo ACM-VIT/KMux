@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
+import { mainWindowConfig, shouldOpenDevTools } from './config/window';
 import { TerminalManager } from './terminal/main/TerminalManager';
 import { registerTerminalIpc } from './terminal/main/registerTerminalIpc';
 
@@ -18,13 +19,9 @@ const unregisterTerminalIpc = registerTerminalIpc({
 
 const createWindow = (): BrowserWindow => {
   const mainWindow = new BrowserWindow({
-    width: 1000,
-    height: 720,
-    backgroundColor: '#111827',
-    autoHideMenuBar: true,
+    ...mainWindowConfig,
     webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
+      ...mainWindowConfig.webPreferences,
       preload: path.join(__dirname, 'preload.js'),
     },
   });
@@ -39,7 +36,7 @@ const createWindow = (): BrowserWindow => {
     );
   }
 
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+  if (shouldOpenDevTools(MAIN_WINDOW_VITE_DEV_SERVER_URL)) {
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 

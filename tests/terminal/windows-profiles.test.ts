@@ -53,8 +53,8 @@ test('windows profile detection returns the expected default profile set', () =>
     'Command Prompt',
     'Azure Cloud Shell',
     'Ubuntu',
-    'Developer Command Prompt for VS 2022',
-    'Developer PowerShell for VS 2022',
+    'Developer Command Prompt for Visual Studio',
+    'Developer PowerShell for Visual Studio',
     'PowerShell',
   ]);
   assert.ok(!profiles.some((profile) => profile.label.toLowerCase() === 'default'));

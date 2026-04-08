@@ -2,7 +2,7 @@
   "name": "kmux",
   "productName": "kmux",
   "version": "1.0.0",
-  "description": "My Electron application description",
+  "description": "Keyboard-driven Electron terminal workspace manager",
   "main": ".vite/build/main.js",
   "private": true,
   "packageManager": "pnpm@10.28.2",

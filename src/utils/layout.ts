@@ -1,21 +1,13 @@
-import type { Terminal } from '../types/canvas-types';
+import type { WidthFraction } from '../types/canvas-types';
+import { TERMINAL_WIDTHS } from '../lib/constants';
 
-const TERMINAL_WIDTHS_VW: Record<NonNullable<Terminal['widthFraction']>, number> = {
-  '1': 97,
-  '2/3': 64,
-  '1/2': 47,
-  '1/3': 30,
-};
-
-export const GAPS_VW = 3;
-
-export const getWidthVW = (widthFraction: Terminal['widthFraction']): number => {
-  if (!widthFraction) {
-    return TERMINAL_WIDTHS_VW['1'];
+export const getWidthVW = (fraction: WidthFraction | undefined): number => {
+  if (!fraction) {
+    return TERMINAL_WIDTHS['1'];
   }
-  return TERMINAL_WIDTHS_VW[widthFraction];
+  return TERMINAL_WIDTHS[fraction] ?? TERMINAL_WIDTHS['1'];
 };
 
-export const getWidthVWString = (widthFraction: Terminal['widthFraction']): string => {
+export const getWidthVWString = (widthFraction: WidthFraction | undefined): string => {
   return `${getWidthVW(widthFraction)}vw`;
 };

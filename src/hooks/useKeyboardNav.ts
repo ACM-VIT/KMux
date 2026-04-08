@@ -7,12 +7,14 @@ export const useKeyboardNav = () => {
     moveTerminal,
     moveWorkspace,
     jumpToTerminal,
+    jumpToWorkspace,
     addTerminal,
     addWorkspace,
     removeTerminal,
     resizeTerminal,
     cycleWidth,
     toggleOverview,
+    toggleTerminalFullscreen,
     cycleThemes,
     toggleSearch,
   } = useCanvasStore();
@@ -35,9 +37,11 @@ export const useKeyboardNav = () => {
         } else if (e.altKey && e.shiftKey && key === 'n') {
           openPicker('workspace');
           handled = true;
-        } else if (/^[1-9]$/.test(key)) {
-          // 1-9 for direct terminal jumping
-          jumpToTerminal(parseInt(key, 10) - 1);
+        } else if (e.altKey && key === 'b') {
+          toggleTerminalFullscreen();
+          handled = true;
+        } else if (/^[0-9]$/.test(key)) {
+          jumpToWorkspace(key === '0' ? 9 : parseInt(key, 10) - 1);
           handled = true;
         } else {
           switch (key) {
@@ -120,12 +124,14 @@ export const useKeyboardNav = () => {
     moveTerminal,
     moveWorkspace,
     jumpToTerminal,
+    jumpToWorkspace,
     addTerminal,
     addWorkspace,
     removeTerminal,
     resizeTerminal,
     cycleWidth,
     toggleOverview,
+    toggleTerminalFullscreen,
     cycleThemes,
     toggleSearch,
     isPickerOpen,

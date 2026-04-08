@@ -5,7 +5,7 @@ export type WidthFraction = '1/3' | '1/2' | '2/3' | '1';
 export interface Terminal {
   id: string;
   title: string;
-  widthFraction?: WidthFraction; // Prradyun's WorkspaceRow uses this for horizontal sizing
+  widthFraction?: WidthFraction;
   profileId?: TerminalProfileId;
 }
 
@@ -13,7 +13,7 @@ export interface Workspace {
   id: string;
   title: string;
   terminals: Terminal[];
-  activeTerminalIndex: number; // horizontal offset 0, 1, 2...
+  activeTerminalIndex: number;
 }
 
 export interface Theme {
@@ -28,15 +28,17 @@ export interface Theme {
 
 export interface CanvasState {
   workspaces: Workspace[];
-  activeWorkspaceIndex: number; // vertical offset 0, 1, 2...
-  isOverview: boolean;          // CanvasContainer uses this for scale(0.28) zoom-out
+  activeWorkspaceIndex: number;
+  isOverview: boolean;
   isSearchOpen: boolean;
+  isTerminalFullscreen: boolean;
   theme: Theme;
 
   setTheme: (themeName: string) => void;
   cycleThemes: () => void;
   toggleSearch: () => void;
   jumpToGlobalTerminal: (terminalId: string) => void;
+  jumpToWorkspace: (index: number) => void;
   moveWorkspace: (direction: 'up' | 'down') => void;
   moveTerminal: (direction: 'left' | 'right') => void;
   jumpToTerminal: (index: number) => void;
@@ -46,4 +48,5 @@ export interface CanvasState {
   resizeTerminal: (direction: 'shrink' | 'expand') => void;
   cycleWidth: () => void;
   toggleOverview: () => void;
+  toggleTerminalFullscreen: () => void;
 }
