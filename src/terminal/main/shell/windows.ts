@@ -94,7 +94,7 @@ const listVsInstallationRoots = (
   const seen = new Set<string>();
 
   const pushRoot = (candidatePath: string | null | undefined): void => {
-    if (!candidatePath || seen.has(candidatePath) || !runtime.pathExists(candidatePath)) {
+    if (!candidatePath || seen.has(candidatePath)) {
       return;
     }
     seen.add(candidatePath);

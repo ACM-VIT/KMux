@@ -13,11 +13,22 @@ const createWorkspaceTitle = (workspaces: Workspace[]): string => {
   return `Workspace ${workspaces.length + 1}`;
 };
 
-const createWorkspace = (workspaces: Workspace[]): Workspace => {
+const createWorkspace = (workspaces: Workspace[], profileId?: TerminalProfileId): Workspace => {
+  const terminals: Terminal[] = profileId
+    ? [
+        {
+          id: createId(),
+          title: 'Terminal 1',
+          widthFraction: '1',
+          profileId,
+        },
+      ]
+    : [];
+
   return {
     id: createId(),
     title: createWorkspaceTitle(workspaces),
-    terminals: [],
+    terminals,
     activeTerminalIndex: 0,
   };
 };
@@ -58,7 +69,7 @@ const pruneEmptyWorkspaceOnLeave = (
 export const useCanvasStore = create<CanvasState>()(
   persist(
     (set, get) => ({
-      workspaces: [createWorkspace([])],
+      workspaces: [createWorkspace([], 'default')],
       activeWorkspaceIndex: 0,
       isOverview: false,
       isSearchOpen: false,
@@ -243,7 +254,6 @@ export const useCanvasStore = create<CanvasState>()(
               newWSIndex = newWorkspaces.length - 1;
             }
 
-            // Final Re-index to ensure Workspace titles always match their visual order
             return {
               workspaces: reindexWorkspaces(newWorkspaces),
               activeWorkspaceIndex: newWSIndex,
@@ -263,7 +273,7 @@ export const useCanvasStore = create<CanvasState>()(
           const term = ws.terminals[ws.activeTerminalIndex];
           if (!term) return state;
 
-          const currentIdx = WIDTH_CYCLE.indexOf(term.widthFraction);
+          const currentIdx = WIDTH_CYCLE.indexOf(term.widthFraction ?? '1');
           const nextIdx =
             direction === 'shrink'
               ? Math.min(WIDTH_CYCLE.length - 1, currentIdx + 1)
@@ -290,7 +300,8 @@ export const useCanvasStore = create<CanvasState>()(
           const term = ws.terminals[ws.activeTerminalIndex];
           if (!term) return state;
 
-          const currentIdx = WIDTH_CYCLE.indexOf(term.widthFraction);
+          const currentWidth = term.widthFraction ?? '1';
+          const currentIdx = WIDTH_CYCLE.indexOf(currentWidth);
           const nextIdx = (currentIdx + 1) % WIDTH_CYCLE.length;
 
           const updatedTerminals = [...ws.terminals];
@@ -307,17 +318,21 @@ export const useCanvasStore = create<CanvasState>()(
         });
       },
 
-      addWorkspace: () => {
+      addWorkspace: (profileId?: TerminalProfileId) => {
         set((state) => {
-          const activeWorkspace = state.workspaces[state.activeWorkspaceIndex];
-          if (!activeWorkspace || activeWorkspace.terminals.length === 0) {
-            return state;
-          }
           if (state.workspaces.length >= MAX_WORKSPACES) {
             return state;
           }
+
+          if (!profileId) {
+            const activeWorkspace = state.workspaces[state.activeWorkspaceIndex];
+            if (!activeWorkspace || activeWorkspace.terminals.length === 0) {
+              return state;
+            }
+          }
+
           const newWorkspaces = [...state.workspaces];
-          newWorkspaces.push(createWorkspace(newWorkspaces));
+          newWorkspaces.push(createWorkspace(newWorkspaces, profileId));
 
           return {
             workspaces: newWorkspaces,
@@ -341,7 +356,7 @@ export const useCanvasStore = create<CanvasState>()(
         const themeKeys = Object.keys(THEMES);
         const currentThemeName = get().theme.name;
         const currentIdx = themeKeys.indexOf(
-          themeKeys.find((k) => THEMES[k].name === currentThemeName) || 'standard',
+          themeKeys.find((key) => THEMES[key].name === currentThemeName) ?? 'standard',
         );
         const nextIdx = (currentIdx + 1) % themeKeys.length;
         set({ theme: THEMES[themeKeys[nextIdx]] });

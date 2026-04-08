@@ -91,10 +91,6 @@ export const useKeyboardNav = () => {
               toggleSearch();
               handled = true;
               break;
-            case 'r':
-              cycleWidth();
-              handled = true;
-              break;
             case '-':
               resizeTerminal('shrink');
               handled = true;
@@ -102,6 +98,10 @@ export const useKeyboardNav = () => {
             case '=':
             case '+':
               resizeTerminal('expand');
+              handled = true;
+              break;
+            case 'r':
+              cycleWidth();
               handled = true;
               break;
           }

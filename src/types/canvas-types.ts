@@ -1,23 +1,14 @@
 import type { TerminalProfileId } from '../terminal/shared/terminal-profiles';
 
-/**
- * Spatial Alignment Constants (vw)
- */
 export type WidthFraction = '1/3' | '1/2' | '2/3' | '1';
 
-/**
- * Unified Terminal Interface
- */
 export interface Terminal {
   id: string;
   title: string;
+  widthFraction?: WidthFraction;
   profileId?: TerminalProfileId;
-  widthFraction: WidthFraction;
 }
 
-/**
- * Unified Workspace Interface
- */
 export interface Workspace {
   id: string;
   title: string;
@@ -25,9 +16,6 @@ export interface Workspace {
   activeTerminalIndex: number;
 }
 
-/**
- * Standard KMux Theme Definition
- */
 export interface Theme {
   name: string;
   bg: string;
@@ -38,9 +26,6 @@ export interface Theme {
   border: string;
 }
 
-/**
- * Global Canvas State Machine
- */
 export interface CanvasState {
   workspaces: Workspace[];
   activeWorkspaceIndex: number;
