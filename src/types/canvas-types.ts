@@ -38,6 +38,26 @@ export interface Theme {
   border: string;
 }
 
+export type ControlAction =
+  | 'moveTerminalLeft'
+  | 'moveTerminalRight'
+  | 'moveWorkspaceUp'
+  | 'moveWorkspaceDown'
+  | 'newTerminal'
+  | 'newWorkspace'
+  | 'closeTerminal'
+  | 'overview'
+  | 'theme'
+  | 'search'
+  | 'cycleWidth'
+  | 'resizeShrink'
+  | 'resizeExpand'
+  | 'fullscreen'
+  | 'terminalPicker'
+  | 'workspacePicker';
+
+export type AppControlBindings = Record<ControlAction, string>;
+
 /**
  * Global Canvas State Machine
  */
@@ -46,12 +66,18 @@ export interface CanvasState {
   activeWorkspaceIndex: number;
   isOverview: boolean;
   isSearchOpen: boolean;
+  isControlsOpen: boolean;
   isTerminalFullscreen: boolean;
   theme: Theme;
+  controls: AppControlBindings;
 
   setTheme: (themeName: string) => void;
   cycleThemes: () => void;
   toggleSearch: () => void;
+  toggleControls: () => void;
+  setControlsOpen: (isOpen: boolean) => void;
+  setControlBinding: (action: ControlAction, key: string) => void;
+  resetControls: () => void;
   jumpToGlobalTerminal: (terminalId: string) => void;
   jumpToWorkspace: (index: number) => void;
   moveWorkspace: (direction: 'up' | 'down') => void;

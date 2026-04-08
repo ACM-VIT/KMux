@@ -10,7 +10,7 @@ interface ChangesSidebarProps {
 }
 
 type SidebarView = 'files' | 'git' | 'history';
-type ActivityIconName = 'files' | 'search' | 'git' | 'history' | 'profiles';
+type ActivityIconName = 'files' | 'search' | 'git' | 'history' | 'controls' | 'profiles';
 
 const isConflictStatus = (status: string): boolean => {
   return status.padEnd(2, ' ').includes('U');
@@ -73,6 +73,19 @@ const ActivityIcon: React.FC<{ name: ActivityIconName }> = ({ name }) => {
         <path d="M4 12a8 8 0 1 0 2.3-5.7" {...stroke} />
         <path d="M4 4v4h4" {...stroke} />
         <path d="M12 8v4l3 2" {...stroke} />
+      </svg>
+    );
+  }
+
+  if (name === 'controls') {
+    return (
+      <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+        <line x1="4" y1="6" x2="20" y2="6" {...stroke} />
+        <circle cx="9" cy="6" r="2" {...stroke} />
+        <line x1="4" y1="12" x2="20" y2="12" {...stroke} />
+        <circle cx="15" cy="12" r="2" {...stroke} />
+        <line x1="4" y1="18" x2="20" y2="18" {...stroke} />
+        <circle cx="11" cy="18" r="2" {...stroke} />
       </svg>
     );
   }
@@ -271,6 +284,8 @@ const FilesTreeRow: React.FC<{
 export const ChangesSidebar: React.FC<ChangesSidebarProps> = ({ isOpen, onToggle, state }) => {
   const theme = useCanvasStore((store) => store.theme);
   const toggleSearch = useCanvasStore((store) => store.toggleSearch);
+  const isControlsOpen = useCanvasStore((store) => store.isControlsOpen);
+  const toggleControls = useCanvasStore((store) => store.toggleControls);
   const [activeView, setActiveView] = useState<SidebarView>('git');
   const [commitMessage, setCommitMessage] = useState('');
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
@@ -435,6 +450,12 @@ export const ChangesSidebar: React.FC<ChangesSidebarProps> = ({ isOpen, onToggle
               }
             }}
             disabled={!hasRepo}
+          />
+          <ActivityButton
+            icon="controls"
+            title="Controls"
+            isActive={isControlsOpen}
+            onClick={toggleControls}
           />
 
           <div className="mt-auto mb-2">

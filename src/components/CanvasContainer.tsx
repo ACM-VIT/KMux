@@ -86,6 +86,7 @@ export const CanvasContainer: React.FC = () => {
             ))}
           </div>
         </div>
+
       </div>
 
       <FuzzyFinder />
@@ -108,6 +109,31 @@ export const CanvasContainer: React.FC = () => {
           }}
           state={repoDockState}
         />
+      </div>
+
+      <div
+        className="pointer-events-none absolute top-1/2 -translate-y-1/2 flex flex-col gap-2 z-40"
+        style={{ left: `${Math.max(8, leftDockWidth - 18)}px` }}
+      >
+        {workspaces.map((_, index) => (
+          <div
+            key={index}
+            className="flex items-center justify-center rounded-lg transition-all duration-700 text-[9px] font-mono font-bold"
+            style={{
+              width: activeWorkspaceIndex === index ? '28px' : '20px',
+              height: activeWorkspaceIndex === index ? '28px' : '20px',
+              background: activeWorkspaceIndex === index ? `${theme.accent}15` : 'rgba(255,255,255,0.02)',
+              border: `1px solid ${activeWorkspaceIndex === index ? `${theme.accent}88` : theme.border}`,
+              color: activeWorkspaceIndex === index ? theme.accent : theme.textDim,
+              opacity: activeWorkspaceIndex === index ? 1 : 0.4,
+              boxShadow: activeWorkspaceIndex === index ? `0 4px 12px ${theme.accent}22` : 'none',
+              transform: activeWorkspaceIndex === index ? 'scale(1.1)' : 'scale(1)',
+              marginLeft: activeWorkspaceIndex === index ? '-4px' : '0',
+            }}
+          >
+            {index + 1}
+          </div>
+        ))}
       </div>
 
       <div
