@@ -10,6 +10,7 @@ interface ChangesSidebarProps {
 }
 
 type SidebarView = 'files' | 'git' | 'history';
+type ActivityIconName = 'files' | 'search' | 'git' | 'history' | 'profiles';
 
 const isConflictStatus = (status: string): boolean => {
   return status.padEnd(2, ' ').includes('U');
@@ -29,17 +30,72 @@ const getStatusColor = (status: string): string => {
   return 'var(--color-git-mod)';
 };
 
+const ActivityIcon: React.FC<{ name: ActivityIconName }> = ({ name }) => {
+  const stroke = {
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    fill: 'none',
+  };
+
+  if (name === 'files') {
+    return (
+      <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+        <path d="M3 6h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z" {...stroke} />
+      </svg>
+    );
+  }
+
+  if (name === 'search') {
+    return (
+      <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+        <circle cx="11" cy="11" r="6" {...stroke} />
+        <path d="m20 20-4-4" {...stroke} />
+      </svg>
+    );
+  }
+
+  if (name === 'git') {
+    return (
+      <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+        <circle cx="6" cy="6" r="2.3" {...stroke} />
+        <circle cx="18" cy="6" r="2.3" {...stroke} />
+        <circle cx="12" cy="18" r="2.3" {...stroke} />
+        <path d="M8.2 7.3 10.8 15m4-7.7L13.3 15" {...stroke} />
+      </svg>
+    );
+  }
+
+  if (name === 'history') {
+    return (
+      <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+        <path d="M4 12a8 8 0 1 0 2.3-5.7" {...stroke} />
+        <path d="M4 4v4h4" {...stroke} />
+        <path d="M12 8v4l3 2" {...stroke} />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+      <circle cx="12" cy="8" r="3" {...stroke} />
+      <path d="M5 20c0-3.2 3-5 7-5s7 1.8 7 5" {...stroke} />
+    </svg>
+  );
+};
+
 const ActivityButton: React.FC<{
-  label: string;
+  icon: ActivityIconName;
   title: string;
   isActive: boolean;
   onClick: () => void;
   badgeCount?: number;
   disabled?: boolean;
-}> = ({ label, title, isActive, onClick, badgeCount, disabled = false }) => (
+}> = ({ icon, title, isActive, onClick, badgeCount, disabled = false }) => (
   <button
     type="button"
-    className="relative flex h-11 w-10 items-center justify-center border-l-2 px-1 text-center text-[9px] font-semibold leading-[1.05] transition-colors"
+    className="relative flex h-10 w-10 items-center justify-center border-l-2 transition-colors"
     style={{
       borderLeftColor: isActive ? 'var(--color-primary)' : 'transparent',
       color: disabled
@@ -50,10 +106,11 @@ const ActivityButton: React.FC<{
       opacity: disabled ? 0.45 : 1,
     }}
     title={title}
+    aria-label={title}
     onClick={onClick}
     disabled={disabled}
   >
-    <span className="whitespace-normal" style={{ fontFamily: 'var(--font-ui)' }}>{label}</span>
+    <ActivityIcon name={icon} />
     {badgeCount && badgeCount > 0 ? (
       <span
         className="absolute right-1 top-1 min-w-[14px] rounded px-1 text-center text-[9px] leading-[14px]"
@@ -316,7 +373,7 @@ export const ChangesSidebar: React.FC<ChangesSidebarProps> = ({ isOpen, onToggle
           style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg-base)' }}
         >
           <ActivityButton
-            label="Files"
+            icon="files"
             title="Files"
             isActive={isOpen && activeView === 'files' && hasRepo}
             onClick={() => {
@@ -335,13 +392,13 @@ export const ChangesSidebar: React.FC<ChangesSidebarProps> = ({ isOpen, onToggle
             disabled={!hasRepo}
           />
           <ActivityButton
-            label="Search"
+            icon="search"
             title="Search"
             isActive={false}
             onClick={toggleSearch}
           />
           <ActivityButton
-            label="Git"
+            icon="git"
             title="Git Changes"
             isActive={isOpen && activeView === 'git' && hasRepo}
             badgeCount={!isOpen && totalChanges > 0 ? totalChanges : undefined}
@@ -361,7 +418,7 @@ export const ChangesSidebar: React.FC<ChangesSidebarProps> = ({ isOpen, onToggle
             disabled={!hasRepo}
           />
           <ActivityButton
-            label="History"
+            icon="history"
             title="History"
             isActive={isOpen && activeView === 'history' && hasRepo}
             onClick={() => {
@@ -382,7 +439,7 @@ export const ChangesSidebar: React.FC<ChangesSidebarProps> = ({ isOpen, onToggle
 
           <div className="mt-auto mb-2">
             <ActivityButton
-              label="Profiles"
+              icon="profiles"
               title="Profiles"
               isActive={isProfileModalOpen}
               onClick={() => setIsProfileModalOpen(true)}
