@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  chokidar@5.0.0:
+    hash: 2d6f1e3ad00b64aba7af2a325e7ba762929043aeafc99009a170bfe41ab7436b
+    path: patches/chokidar@5.0.0.patch
+
 importers:
 
   .:
@@ -19,7 +24,7 @@ importers:
         version: 6.0.0
       chokidar:
         specifier: ^5.0.0
-        version: 5.0.0
+        version: 5.0.0(patch_hash=2d6f1e3ad00b64aba7af2a325e7ba762929043aeafc99009a170bfe41ab7436b)
       electron-squirrel-startup:
         specifier: ^1.0.1
         version: 1.0.1
@@ -4793,7 +4798,7 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.3
 
-  chokidar@5.0.0:
+  chokidar@5.0.0(patch_hash=2d6f1e3ad00b64aba7af2a325e7ba762929043aeafc99009a170bfe41ab7436b):
     dependencies:
       readdirp: 5.0.0
 
